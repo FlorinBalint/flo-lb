@@ -30,7 +30,7 @@ The load balancer will listen by default on port `:8080` but you can change that
 using the *--port* flag.
 
 ## Terminal #4
-Start doing `http` requests using curl to the load balancer.
+Start doing `http` requests to the load balancer using curl:
 
 ```
 $ for i in {1..5}
