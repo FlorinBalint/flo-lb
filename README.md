@@ -1,6 +1,6 @@
 Example of toy load balancer for educational purposes.
 
-The current version round robins between different backends, without checking
+The current version round robins between hardcoded backends, without checking
 for their health.
 
 # Testing setup

@@ -46,6 +46,22 @@ func New(cfg Config, name string) *Server {
 	}
 }
 
+func (s *Server) openNewConnectionForIndex(idx int, url *url.URL) *backend {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.backends[idx] == nil {
+		reverseProxy := httputil.NewSingleHostReverseProxy(url)
+		BE := &backend{
+			addr:       url.String(),
+			connection: reverseProxy,
+			isReady:    true, // TODO implemenet readiness / health checks
+		}
+		s.backends[idx] = BE
+	}
+
+	return s.backends[idx]
+}
+
 func (s *Server) next() (*backend, error) {
 	s.mu.RLock()
 	var BE *backend
@@ -63,18 +79,8 @@ func (s *Server) next() (*backend, error) {
 				s.mu.RLock()
 				break
 			}
-			reverseProxy := httputil.NewSingleHostReverseProxy(targetURL)
-
 			s.mu.RUnlock()
-			BE = &backend{
-				addr:       targetURL.String(),
-				connection: reverseProxy,
-				isReady:    true, // TODO implemenet readiness / health checks
-			}
-
-			s.mu.Lock()
-			s.backends[currIdx] = BE
-			s.mu.Unlock()
+			BE = s.openNewConnectionForIndex(int(currIdx), targetURL)
 		}
 	}
 
