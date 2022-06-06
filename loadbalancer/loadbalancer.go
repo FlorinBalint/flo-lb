@@ -63,6 +63,7 @@ func (s *Server) openNewConnectionForIndex(idx int, url *url.URL) *backend {
 }
 
 func (s *Server) next() (*backend, error) {
+	// We cannot defer RUnlock because we could call openNewConnectionForIndex()
 	s.mu.RLock()
 	var BE *backend
 	var err error
@@ -72,11 +73,12 @@ func (s *Server) next() (*backend, error) {
 		atomic.AddUint64(&s.idx, 1)
 		if nextBE := s.backends[currIdx]; nextBE != nil && nextBE.isReady {
 			BE = nextBE
+			s.mu.RUnlock()
 		} else if nextBE == nil {
 			targetURL, urlErr := url.Parse(s.cfg.Backends[currIdx])
 			if urlErr != nil {
 				err = urlErr
-				s.mu.RLock()
+				s.mu.RUnlock()
 				break
 			}
 			s.mu.RUnlock()
