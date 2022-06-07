@@ -31,9 +31,9 @@ type Server struct {
 	service  string
 	cfg      Config
 	backends []*backend
-	beCount  uint64
+	beCount  int64
 	mu       sync.RWMutex
-	idx      uint64
+	idx      int64
 }
 
 func New(cfg Config, name string) *Server {
@@ -41,38 +41,36 @@ func New(cfg Config, name string) *Server {
 		service:  name,
 		cfg:      cfg,
 		backends: make([]*backend, len(cfg.Backends)),
-		beCount:  uint64(len(cfg.Backends)),
-		idx:      0,
+		beCount:  int64(len(cfg.Backends)),
+		idx:      -1,
 	}
 }
 
-func (s *Server) openNewConnectionForIndex(idx int, url *url.URL) *backend {
+func (s *Server) openNewConnectionForIndex(idx int64, url *url.URL) *backend {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.backends[idx] == nil {
 		reverseProxy := httputil.NewSingleHostReverseProxy(url)
-		BE := &backend{
+		be := &backend{
 			addr:       url.String(),
 			connection: reverseProxy,
 			isReady:    true, // TODO implemenet readiness / health checks
 		}
-		s.backends[idx] = BE
+		s.backends[idx] = be
 	}
 
 	return s.backends[idx]
 }
 
 func (s *Server) next() (*backend, error) {
+	var be *backend
+	var err error
 	// We cannot defer RUnlock because we could call openNewConnectionForIndex()
 	s.mu.RLock()
-	var BE *backend
-	var err error
-
-	for BE == nil {
-		currIdx := atomic.LoadUint64(&s.idx) % s.beCount
-		atomic.AddUint64(&s.idx, 1)
+	for be == nil {
+		currIdx := atomic.AddInt64(&s.idx, 1) % s.beCount
 		if nextBE := s.backends[currIdx]; nextBE != nil && nextBE.isReady {
-			BE = nextBE
+			be = nextBE
 			s.mu.RUnlock()
 		} else if nextBE == nil {
 			targetURL, urlErr := url.Parse(s.cfg.Backends[currIdx])
@@ -82,11 +80,11 @@ func (s *Server) next() (*backend, error) {
 				break
 			}
 			s.mu.RUnlock()
-			BE = s.openNewConnectionForIndex(int(currIdx), targetURL)
+			be = s.openNewConnectionForIndex(currIdx, targetURL)
 		}
 	}
 
-	return BE, err
+	return be, err
 }
 
 // lbHandler is Round Robin handler for loadbalancing

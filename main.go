@@ -14,7 +14,7 @@ import (
 var (
 	backendsFlag = addresses.Flag("backends", nil, "Backends to balance receive workload")
 	port         = flag.Int("port", 8080, "Port to listen to")
-	name         = flag.String("name", "Flo LB Service", "Name of the service")
+	name         = flag.String("name", "Flo LB", "Name of the load balancing service")
 )
 
 func main() {
