@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+option go_package = "github.com/FlorinBalint/flo-lb";
+
+
+message DynamicBackends {
+  // TODO(issues/5): Implement service discovery
+}
+
+message StaticBackends {
+  // A hardcoded list of urls to the backends to connect to.
+  repeated string urls = 1;
+}
+
+message BackendConfig {
+  // TODO: Consider having one backend config per route path.
+
+  oneof type {
+    StaticBackends static = 1;
+
+    DynamicBackends dynamic = 2;    
+  }
+}
+
+message Config {
+  // Name of the load balancer, defaults to flo-lb
+  optional string name = 1;
+
+  // Port listening on
+  optional int32 port = 2;
+
+  // Configuration about the backends
+  optional BackendConfig backend = 3;
+}

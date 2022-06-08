@@ -4,29 +4,57 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-
+	"io/ioutil"
+	"log"
 	"net/http"
 
-	"github.com/FlorinBalint/flo-lb/addresses"
 	"github.com/FlorinBalint/flo-lb/loadbalancer"
+	pb "github.com/FlorinBalint/flo_lb"
+	"google.golang.org/protobuf/encoding/prototext"
 )
 
 var (
-	backendsFlag = addresses.Flag("backends", nil, "Backends to balance receive workload")
-	port         = flag.Int("port", 8080, "Port to listen to")
-	name         = flag.String("name", "Flo LB", "Name of the load balancing service")
+	config     = flag.String("config", "", "Config proto to use for the load balancer")
+	configFile = flag.String("config_file", "", "Config file to use for the load balancer")
 )
+
+func parseConfig(cfg []byte) (*pb.Config, error) {
+	res := &pb.Config{}
+	err := prototext.Unmarshal(cfg, res)
+	return res, err
+}
+
+func parseConfigFromFile(cfgPath string) (*pb.Config, error) {
+	content, err := ioutil.ReadFile(cfgPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseConfig(content)
+}
 
 func main() {
 	flag.Parse()
-
-	lbCfg := loadbalancer.Config{
-		Port:     *port,
-		Backends: *backendsFlag,
+	if (len(*config) == 0) == (len(*configFile) == 0) {
+		log.Fatalf("Either --config or --config_file must pe specified !")
+	}
+	var lbCfg *pb.Config
+	var err error
+	if len(*config) != 0 {
+		lbCfg, err = parseConfig([]byte(*config))
+	} else if len(*configFile) != 0 {
+		lbCfg, err = parseConfigFromFile(*configFile)
 	}
 
-	lb := loadbalancer.New(lbCfg, *name)
-	err := lb.ListenAndServe()
+	if err != nil {
+		log.Fatalf("Error while parsing the configs: %v\n", err)
+	}
+
+	lb, err := loadbalancer.New(lbCfg)
+	if err != nil {
+		log.Fatalf("Error creating a new load balancer: %v\n", err)
+	}
+	err = lb.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		fmt.Printf("Proxy server was closed")
 	} else if err != nil {

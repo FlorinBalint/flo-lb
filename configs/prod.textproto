@@ -1,0 +1,9 @@
+name: "flo-lb"
+port: 8080
+backend {
+  static {
+    urls: "http://localhost:8081"
+    urls: "http://localhost:8082"
+    urls: "http://localhost:8083"
+  }
+}
