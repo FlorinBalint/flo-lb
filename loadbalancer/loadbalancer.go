@@ -2,10 +2,8 @@ package loadbalancer
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"sync"
 	"sync/atomic"
 
@@ -46,9 +44,10 @@ func New(cfg Config, name string) *Server {
 	}
 }
 
-func (s *Server) openNewConnectionForIndex(idx int64, url *url.URL) *backend {
+func (s *Server) openNewConnection(idx int64) *backend {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	url := s.cfg.Backends[idx]
 	if s.backends[idx] == nil {
 		reverseProxy := httputil.NewSingleHostReverseProxy(url)
 		be := &backend{
@@ -58,45 +57,29 @@ func (s *Server) openNewConnectionForIndex(idx int64, url *url.URL) *backend {
 		}
 		s.backends[idx] = be
 	}
-
 	return s.backends[idx]
 }
 
-func (s *Server) next() (*backend, error) {
-	var be *backend
-	var err error
-	// We cannot defer RUnlock because we could call openNewConnectionForIndex()
+func (s *Server) next() *backend {
 	s.mu.RLock()
-	for be == nil {
+	for {
 		currIdx := atomic.AddInt64(&s.idx, 1) % s.beCount
 		if nextBE := s.backends[currIdx]; nextBE != nil && nextBE.isReady {
-			be = nextBE
 			s.mu.RUnlock()
+			return nextBE
 		} else if nextBE == nil {
-			targetURL, urlErr := url.Parse(s.cfg.Backends[currIdx])
-			if urlErr != nil {
-				err = urlErr
-				s.mu.RUnlock()
-				break
-			}
 			s.mu.RUnlock()
-			be = s.openNewConnectionForIndex(currIdx, targetURL)
+			return s.openNewConnection(currIdx)
 		}
 	}
-
-	return be, err
 }
 
 // lbHandler is Round Robin handler for loadbalancing
 func (s *Server) lbHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Received request for %v\n", r.URL)
-	be, err := s.next()
-	if err != nil {
-		log.Printf("Error while trying to reach a backend: %v", err)
-	} else {
-		fmt.Printf("Will forward request to %v\n", be)
-		be.connection.ServeHTTP(w, r)
-	}
+	be := s.next()
+	fmt.Printf("Will forward request to %v\n", be)
+	be.connection.ServeHTTP(w, r)
 }
 
 func (s *Server) ListenAndServe() error {
