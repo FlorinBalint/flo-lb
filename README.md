@@ -23,11 +23,13 @@ $ go run ./example/server/main.go --name=Server2 --port=8082
 ## Terminal #3
 Run the load balancer and make it point to the two servers:
 ```
-$ go run main.go --backends="http://localhost:8081,http://localhost:8082"
+$ make build
+$ make run
 ```
 
-The load balancer will listen by default on port `:8080` but you can change that
-using the *--port* flag.
+The load balancer will listen by default on port `:8080` 
+and round robin requests to the two backends.
+You can change the behaviour in the `configs/prod.textproto` config file.
 
 ## Terminal #4
 Start doing `http` requests to the load balancer using curl:
