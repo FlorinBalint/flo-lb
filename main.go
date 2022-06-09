@@ -16,6 +16,7 @@ import (
 var (
 	config     = flag.String("config", "", "Config proto to use for the load balancer")
 	configFile = flag.String("config_file", "", "Config file to use for the load balancer")
+	port       = flag.Int("port", 8080, "Override the port listening on")
 )
 
 func parseConfig(cfg []byte) (*pb.Config, error) {
@@ -31,6 +32,14 @@ func parseConfigFromFile(cfgPath string) (*pb.Config, error) {
 	}
 
 	return parseConfig(content)
+}
+
+func overridePortIfNeeded(cfg *pb.Config) {
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "port" {
+			*cfg.Port = int32(*port)
+		}
+	})
 }
 
 func main() {
@@ -50,6 +59,7 @@ func main() {
 		log.Fatalf("Error while parsing the configs: %v\n", err)
 	}
 
+	overridePortIfNeeded(lbCfg)
 	lb, err := loadbalancer.New(lbCfg)
 	if err != nil {
 		log.Fatalf("Error creating a new load balancer: %v\n", err)
