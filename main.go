@@ -30,7 +30,6 @@ func parseConfigFromFile(cfgPath string) (*pb.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return parseConfig(content)
 }
 
