@@ -24,11 +24,18 @@ func getHello(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, resp)
 }
 
+func iAmAlive(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("got /healthz request\n")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}
+
 func main() {
 	flag.Parse()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", getRoot)
 	mux.HandleFunc("/hello", getHello)
+	mux.HandleFunc("/healthz", iAmAlive)
 
 	address := fmt.Sprintf("localhost:%v", *port)
 	fmt.Printf("%v will start listening on %v\n", *name, *port)

@@ -6,3 +6,16 @@ backend {
     urls: "http://localhost:8082"
   }
 }
+health_check {
+  probe {
+    http_get {
+      path: "/healthz"
+    }
+  }
+  initial_delay {
+    seconds: 10
+  }
+  period {
+    seconds: 5
+  }
+}

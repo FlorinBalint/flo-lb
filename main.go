@@ -44,7 +44,7 @@ func overridePortIfNeeded(cfg *pb.Config) {
 func main() {
 	flag.Parse()
 	if (len(*config) == 0) == (len(*configFile) == 0) {
-		log.Fatalf("Either --config or --config_file must pe specified !")
+		log.Fatalf("Exactly one of --config or --config_file must pe specified !")
 	}
 	var lbCfg *pb.Config
 	var err error

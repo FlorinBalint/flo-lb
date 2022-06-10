@@ -2,6 +2,7 @@ syntax = "proto3";
 
 option go_package = "github.com/FlorinBalint/flo-lb";
 
+import "google/protobuf/duration.proto";
 
 message DynamicBackends {
   // TODO(issues/5): Implement service discovery
@@ -22,6 +23,34 @@ message BackendConfig {
   }
 }
 
+
+message HttpGet {
+  optional string path = 1;
+  // TODO conside allowing passing extra args
+}
+
+message Command {
+  // TODO: Allow a command as healthcheck
+}
+
+message HealthProbe {
+  oneof type {
+    // Do a http get as health probe 
+    HttpGet http_get = 1;
+
+    Command command = 2;
+  } // TODO(#2): Add TCP only probes
+}
+
+message HealthCheck {
+  
+  optional HealthProbe probe = 1;
+
+  optional google.protobuf.Duration initial_delay = 2;
+
+  optional google.protobuf.Duration period = 3;
+}
+
 message Config {
   // Name of the load balancer, defaults to flo-lb
   optional string name = 1;
@@ -31,4 +60,7 @@ message Config {
 
   // Configuration about the backends
   optional BackendConfig backend = 3;
+
+  // Configuration for checking backend health.
+  optional HealthCheck health_check = 4;
 }

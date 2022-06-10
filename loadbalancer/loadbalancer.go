@@ -15,6 +15,7 @@ import (
 type backend struct {
 	url        *url.URL
 	connection *httputil.ReverseProxy
+	isAlive    bool
 	isReady    bool
 }
 
@@ -26,8 +27,9 @@ type Server struct {
 	cfg      *pb.Config
 	backends []*backend
 	beCount  int64
-	mu       sync.RWMutex
-	idx      int64
+	// TODO: Consider improving the granularity of the lock
+	mu  sync.RWMutex
+	idx int64
 }
 
 func New(cfg *pb.Config) (*Server, error) {
@@ -45,7 +47,8 @@ func New(cfg *pb.Config) (*Server, error) {
 		}
 		backends[i] = &backend{
 			url:     url,
-			isReady: false, // TODO implemenet readiness / health checks
+			isReady: true, // TODO implemenet readiness / health checks
+			isAlive: false,
 		}
 	}
 
@@ -62,7 +65,7 @@ func (s *Server) openNewConnection(idx int64) *backend {
 	defer s.mu.Unlock()
 	reverseProxy := httputil.NewSingleHostReverseProxy(s.backends[idx].url)
 	s.backends[idx].connection = reverseProxy
-	s.backends[idx].isReady = true
+	s.backends[idx].isReady = true // TODO implement readiness checks
 	return s.backends[idx]
 }
 
@@ -70,13 +73,14 @@ func (s *Server) next() *backend {
 	s.mu.RLock()
 	for {
 		currIdx := atomic.AddInt64(&s.idx, 1) % s.beCount
-		if nextBE := s.backends[currIdx]; nextBE.isReady {
+		if nextBE := s.backends[currIdx]; nextBE.connection != nil && nextBE.isAlive {
 			s.mu.RUnlock()
 			return nextBE
-		} else if !nextBE.isReady {
+		} else if nextBE.connection == nil { // try to open a new connection
 			s.mu.RUnlock()
 			return s.openNewConnection(currIdx)
-		}
+		} // else check next backend, this one is not alive
+		// TODO: Do some exponential backoff if all backends are dead
 	}
 }
 
@@ -84,18 +88,25 @@ func (s *Server) next() *backend {
 func (s *Server) lbHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Received request for %v\n", r.URL)
 	be := s.next()
-	fmt.Printf("Will forward request to %v\n", be)
-	be.connection.ServeHTTP(w, r)
+	if be.isReady {
+		fmt.Printf("Will forward request to %v\n", be)
+		be.connection.ServeHTTP(w, r)
+	} else {
+		fmt.Printf("%v is not ready to receive requests \n", be)
+	}
 }
 
 func (s *Server) ListenAndServe() error {
-	fmt.Printf("Starting load balancer with backends %v\n", s.cfg.GetBackend().GetStatic().GetUrls())
-	fmt.Printf("%v balancer will start listening on port %v\n", s.cfg.GetName(), s.cfg.GetPort())
-
 	server := http.Server{
 		Addr:    fmt.Sprintf(":%v", s.cfg.GetPort()),
 		Handler: http.HandlerFunc(s.lbHandler),
 	}
 
+	if s.cfg.GetHealthCheck() != nil {
+		s.healthCheck()
+	}
+
+	fmt.Printf("Starting load balancer with backends %v\n", s.cfg.GetBackend().GetStatic().GetUrls())
+	fmt.Printf("%v balancer will start listening on port %v\n", s.cfg.GetName(), s.cfg.GetPort())
 	return server.ListenAndServe()
 }
