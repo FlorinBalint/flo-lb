@@ -86,13 +86,13 @@ func (s *Server) next() *backend {
 
 // lbHandler is Round Robin handler for loadbalancing
 func (s *Server) lbHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("Received request for %v\n", r.URL)
+	log.Printf("Received request for %v\n", r.URL)
 	be := s.next()
 	if be.isReady {
-		fmt.Printf("Will forward request to %v\n", be)
+		log.Printf("Will forward request to %v\n", be)
 		be.connection.ServeHTTP(w, r)
 	} else {
-		fmt.Printf("%v is not ready to receive requests \n", be)
+		log.Printf("%v is not ready to receive requests \n", be)
 	}
 }
 
@@ -106,7 +106,7 @@ func (s *Server) ListenAndServe() error {
 		s.healthCheck()
 	}
 
-	fmt.Printf("Starting load balancer with backends %v\n", s.cfg.GetBackend().GetStatic().GetUrls())
-	fmt.Printf("%v balancer will start listening on port %v\n", s.cfg.GetName(), s.cfg.GetPort())
+	log.Printf("Starting load balancer with backends %v\n", s.cfg.GetBackend().GetStatic().GetUrls())
+	log.Printf("%v balancer will start listening on port %v\n", s.cfg.GetName(), s.cfg.GetPort())
 	return server.ListenAndServe()
 }

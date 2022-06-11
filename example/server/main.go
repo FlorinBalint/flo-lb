@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 )
 
@@ -14,18 +15,18 @@ var (
 )
 
 func getRoot(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("got / request\n")
+	log.Printf("got / request\n")
 	io.WriteString(w, "This is my website!\n")
 }
 
 func getHello(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("got /hello request\n")
+	log.Printf("got /hello request\n")
 	resp := fmt.Sprintf("Hello from %v\n", *name)
 	io.WriteString(w, resp)
 }
 
 func iAmAlive(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("got /healthz request\n")
+	log.Printf("got /healthz request\n")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK"))
 }
@@ -38,12 +39,12 @@ func main() {
 	mux.HandleFunc("/healthz", iAmAlive)
 
 	address := fmt.Sprintf("localhost:%v", *port)
-	fmt.Printf("%v will start listening on %v\n", *name, *port)
+	log.Printf("%v will start listening on %v\n", *name, *port)
 
 	err := http.ListenAndServe(address, mux)
 	if errors.Is(err, http.ErrServerClosed) {
-		fmt.Printf("server closed\n")
+		log.Printf("server closed\n")
 	} else if err != nil {
-		fmt.Printf("error listening for server: %s\n", err)
+		log.Printf("error listening for server: %s\n", err)
 	}
 }
