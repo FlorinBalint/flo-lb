@@ -1,6 +1,7 @@
 package loadbalancer
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -25,6 +26,7 @@ func (b *backend) String() string {
 
 type Server struct {
 	cfg      *pb.Config
+	server   *http.Server
 	backends []*backend
 	beCount  int64
 	// TODO: Consider improving the granularity of the lock
@@ -52,12 +54,18 @@ func New(cfg *pb.Config) (*Server, error) {
 		}
 	}
 
-	return &Server{
+	lb := &Server{
 		cfg:      cfg,
 		backends: backends,
 		beCount:  int64(len(backends)),
 		idx:      -1,
-	}, nil
+	}
+	lb.server = &http.Server{
+		Addr:    fmt.Sprintf(":%v", cfg.GetPort()),
+		Handler: http.HandlerFunc(lb.ServeHTTP),
+	}
+
+	return lb, nil
 }
 
 func (s *Server) openNewConnection(idx int64) *backend {
@@ -76,7 +84,7 @@ func (s *Server) next() *backend {
 		if nextBE := s.backends[currIdx]; nextBE.connection != nil && nextBE.isAlive {
 			s.mu.RUnlock()
 			return nextBE
-		} else if nextBE.connection == nil { // try to open a new connection
+		} else if nextBE.connection == nil && nextBE.isAlive && nextBE.isReady { // try to open a new connection
 			s.mu.RUnlock()
 			return s.openNewConnection(currIdx)
 		} // else check next backend, this one is not alive
@@ -84,29 +92,26 @@ func (s *Server) next() *backend {
 	}
 }
 
-// lbHandler is Round Robin handler for loadbalancing
-func (s *Server) lbHandler(w http.ResponseWriter, r *http.Request) {
+// ServeHTTP is Round Robin handler for loadbalancing
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received request for %v\n", r.URL)
 	be := s.next()
-	if be.isReady {
-		log.Printf("Will forward request to %v\n", be)
-		be.connection.ServeHTTP(w, r)
-	} else {
-		log.Printf("%v is not ready to receive requests \n", be)
-	}
+	be.connection.ServeHTTP(w, r)
 }
 
-func (s *Server) ListenAndServe() error {
-	server := http.Server{
-		Addr:    fmt.Sprintf(":%v", s.cfg.GetPort()),
-		Handler: http.HandlerFunc(s.lbHandler),
-	}
+func (s *Server) ListenAndServe(ctx context.Context) error {
+	lbContext, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	if s.cfg.GetHealthCheck() != nil {
-		s.healthCheck()
+		s.StartHealthChecks(lbContext)
 	}
 
 	log.Printf("Starting load balancer with backends %v\n", s.cfg.GetBackend().GetStatic().GetUrls())
 	log.Printf("%v balancer will start listening on port %v\n", s.cfg.GetName(), s.cfg.GetPort())
-	return server.ListenAndServe()
+	return s.server.ListenAndServe()
+}
+
+func (s *Server) Close() error {
+	return s.server.Close()
 }

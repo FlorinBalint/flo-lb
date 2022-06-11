@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -63,7 +64,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error creating a new load balancer: %v\n", err)
 	}
-	err = lb.ListenAndServe()
+	err = lb.ListenAndServe(context.Background())
 	if errors.Is(err, http.ErrServerClosed) {
 		fmt.Printf("Proxy server was closed")
 	} else if err != nil {

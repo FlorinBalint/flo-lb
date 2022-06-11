@@ -9,7 +9,7 @@ GO_PROTO_MODULE="github.com/FlorinBalint/flo_lb"
 BINARY=flo_load_balancer
 CONFIG_FILE=configs/prod.textproto
 
-.PHONY: config_proto build run clean
+.PHONY: config_proto build run test clean
 
 ${GOPROTO}/flo_lb:
 	mkdir -p ${GOPROTO}/flo_lb
@@ -31,6 +31,9 @@ build: ${GOPROTO}/flo_lb/go.mod config_proto ${GOBIN}/${CONFIG_FILE}
 
 run:
 	${GOBIN}/${BINARY} --config_file="${GOBIN}/${CONFIG_FILE}"
+
+test:
+	go test github.com/FlorinBalint/flo-lb/loadbalancer
 
 clean:
 	rm -rf ${BUILD}
