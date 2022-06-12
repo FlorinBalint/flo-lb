@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/FlorinBalint/flo_lb"
+	pb "github.com/FlorinBalint/flo_lb/proto"
 	"google.golang.org/protobuf/proto"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 )
@@ -176,7 +176,7 @@ func TestLBHandler(t *testing.T) {
 
 			frontend := httptest.NewServer(
 				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					time.Sleep(healthcheckPeriod) // wait for healthchecks
+					time.Sleep(2 * healthcheckPeriod) // wait for healthchecks
 					lb.ServeHTTP(w, r)
 				},
 				))

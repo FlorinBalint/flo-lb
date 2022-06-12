@@ -4,36 +4,36 @@ mkfile_dir := $(dir $(mkfile_path))
 
 BUILD=${mkfile_dir}build
 GOBIN=${BUILD}/bin
-GOPROTO=${BUILD}/src/proto
-GO_PROTO_MODULE="github.com/FlorinBalint/flo_lb"
+GOSRC=${BUILD}/src
+GOPROTO=${GOSRC}/flo_lb/proto
+GO_PROTO_MODULE="github.com/FlorinBalint/flo_lb/proto"
 BINARY=flo_load_balancer
-CONFIG_FILE=configs/prod.textproto
+CONFIG_FILE=configs/local.textproto
 
 .PHONY: config_proto build run test clean
 
-${GOPROTO}/flo_lb:
-	mkdir -p ${GOPROTO}/flo_lb
+${GOPROTO}:
+	mkdir -p ${GOPROTO}
 
-${GOPROTO}/flo_lb/go.mod: ${GOPROTO}/flo_lb
-		cd ${GOPROTO}/flo_lb && go mod init ${GO_PROTO_MODULE} && cd -
+${GOPROTO}/go.mod: ${GOPROTO}
+		cd ${GOPROTO} && go mod init ${GO_PROTO_MODULE} && cd -
 
 config_proto:
-	protoc -I=${mkfile_dir}proto  --go_out=${GOPROTO}/flo_lb --go_opt=paths=source_relative \
-		--go-grpc_out=${GOPROTO}/flo_lb --go-grpc_opt=paths=source_relative \
+	protoc -I=${mkfile_dir}proto  --go_out=${GOPROTO} --go_opt=paths=source_relative \
 		${mkfile_dir}proto/config.proto
 
-${GOBIN}/${CONFIG_FILE}:
-	mkdir -p $(dir ${GOBIN}/${CONFIG_FILE})
-	cp ${mkfile_dir}${CONFIG_FILE} $(dir ${GOBIN}/${CONFIG_FILE})
+${GOSRC}/${CONFIG_FILE}:
+	mkdir -p $(dir ${GOSRC}/${CONFIG_FILE})
+	cp ${mkfile_dir}${CONFIG_FILE} $(dir ${GOSRC}/${CONFIG_FILE})
 
-build: ${GOPROTO}/flo_lb/go.mod config_proto ${GOBIN}/${CONFIG_FILE}
+build: ${GOPROTO}/go.mod config_proto
 	go build ${LDFLAGS} -o ${GOBIN}/${BINARY} main.go
 
-run:
-	${GOBIN}/${BINARY} --config_file="${GOBIN}/${CONFIG_FILE}"
+run: ${GOSRC}/${CONFIG_FILE}
+	${GOBIN}/${BINARY} --config_file="${GOSRC}/${CONFIG_FILE}"
 
 test:
-	go test github.com/FlorinBalint/flo-lb/loadbalancer
+	go test github.com/FlorinBalint/flo_lb/loadbalancer
 
 clean:
 	rm -rf ${BUILD}

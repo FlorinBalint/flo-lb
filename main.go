@@ -9,8 +9,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/FlorinBalint/flo-lb/loadbalancer"
-	pb "github.com/FlorinBalint/flo_lb"
+	"github.com/FlorinBalint/flo_lb/loadbalancer"
+	pb "github.com/FlorinBalint/flo_lb/proto"
 	"google.golang.org/protobuf/encoding/prototext"
 )
 

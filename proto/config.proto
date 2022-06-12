@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "github.com/FlorinBalint/flo-lb";
+option go_package = "github.com/FlorinBalint/flo_lb/proto";
 
 import "google/protobuf/duration.proto";
 

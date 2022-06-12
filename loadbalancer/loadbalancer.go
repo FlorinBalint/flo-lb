@@ -10,7 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	pb "github.com/FlorinBalint/flo_lb"
+	pb "github.com/FlorinBalint/flo_lb/proto"
 )
 
 type backend struct {

@@ -42,3 +42,11 @@ done
 
 Watch the logs of the servers, load balancers and the responses to
 know what is happening.
+
+## Note for running the load balancer within a container
+
+Listening to `http://localhost` would resolve to the container localhost.
+Therefore, https://hub.docker.com/r/florinbalint/flo-lb 
+tries to connect to `host.docker.internal` by default instead.
+If that does not resolve to your localhost you can add it manually
+with `-d --add-host host.docker.internal: host-gateway` when running locally.

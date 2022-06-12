@@ -38,7 +38,7 @@ func main() {
 	mux.HandleFunc("/hello", getHello)
 	mux.HandleFunc("/healthz", iAmAlive)
 
-	address := fmt.Sprintf("localhost:%v", *port)
+	address := fmt.Sprintf(":%v", *port)
 	log.Printf("%v will start listening on %v\n", *name, *port)
 
 	err := http.ListenAndServe(address, mux)

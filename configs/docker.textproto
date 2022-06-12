@@ -1,0 +1,21 @@
+name: "flo-lb"
+port: 8080
+backend {
+  static {
+    urls: "http://host.docker.internal:8081"
+    urls: "http://host.docker.internal:8082"
+  }
+}
+health_check {
+  probe {
+    http_get {
+      path: "/healthz"
+    }
+  }
+  initial_delay {
+    seconds: 10
+  }
+  period {
+    seconds: 5
+  }
+}
