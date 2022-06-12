@@ -11,19 +11,19 @@ Open 4 terminal windows and then run in each respectively:
 
 Run the first test server backend on `localhost:8081`
 ```console
-florinbalin@DESKTOP:flo-lb$ go run ./example/server/main.go --name=Server1 --port=8081
+florinbalin@DESKTOP:flo_lb$ go run ./example/server/main.go --name=Server1 --port=8081
 ```
 
 ## Terminal #2
 Run the second test server backend on `localhost:8082`
 ```console
-florinbalin@DESKTOP:flo-lb$ go run ./example/server/main.go --name=Server2 --port=8082
+florinbalin@DESKTOP:flo_lb$ go run ./example/server/main.go --name=Server2 --port=8082
 ```
 
 ## Terminal #3
 Run the load balancer and make it point to the two servers:
 ```console
-florinbalin@DESKTOP:flo-lb$ make build && make build
+florinbalin@DESKTOP:flo_lb$ make build && make build
 ```
 
 The load balancer will listen by default on port `:8080` 
