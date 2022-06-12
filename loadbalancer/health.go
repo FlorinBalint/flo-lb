@@ -9,8 +9,9 @@ import (
 
 // pingBackend checks if the backend is alive.
 func (s *Server) liveness(ctx context.Context, aliveCh chan bool, be *backend) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	be.mu.RLock()
+	defer be.mu.RUnlock()
+	defer close(aliveCh)
 	healthPath := be.url.String() + s.cfg.GetHealthCheck().GetProbe().GetHttpGet().GetPath()
 	// TODO Healthcheck: Consider adding extra args to the request.
 	req, err := http.NewRequest("GET", healthPath, nil)
@@ -36,23 +37,21 @@ func (s *Server) liveness(ctx context.Context, aliveCh chan bool, be *backend) {
 }
 
 func (s *Server) checkHealth(ctx context.Context, be *backend) {
-	go func() {
-		msg := "alive"
-		aliveCh := make(chan bool)
-		go s.liveness(ctx, aliveCh, be)
-		select {
-		case <-ctx.Done():
-			log.Printf("context canceled")
-			break
-		case be.isAlive = <-aliveCh:
-			if !be.isAlive {
-				msg = "dead"
-			}
+	msg := "alive"
+	aliveCh := make(chan bool)
+	go s.liveness(ctx, aliveCh, be)
+	select {
+	case <-ctx.Done():
+		log.Printf("context canceled")
+		break
+	case be.isAlive = <-aliveCh:
+		if !be.isAlive {
+			msg = "dead"
 		}
+	}
 
-		// We need to make sure that all threads / routines see the updated value
-		log.Printf("%v checked %v by healthcheck", be.url, msg)
-	}()
+	// We need to make sure that all threads / routines see the updated value
+	log.Printf("%v checked %v by healthcheck", be.url, msg)
 }
 
 func (s *Server) StartHealthChecks(ctx context.Context) {
@@ -74,9 +73,11 @@ func (s *Server) StartHealthChecks(ctx context.Context) {
 			case <-ctx.Done():
 				break
 			case <-t.C:
+				s.mu.RLock() // lock in case the backends array changes (future work)
 				for _, backend := range s.backends {
-					s.checkHealth(ctx, backend)
+					go s.checkHealth(ctx, backend)
 				}
+				s.mu.RUnlock()
 			}
 		}
 	}()

@@ -18,10 +18,32 @@ type backend struct {
 	connection *httputil.ReverseProxy
 	isAlive    bool
 	isReady    bool
+	mu         sync.RWMutex
 }
 
 func (b *backend) String() string {
 	return fmt.Sprintf("address: %v", b.url)
+}
+
+func (b *backend) openNewConnection() (*httputil.ReverseProxy, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	reverseProxy := httputil.NewSingleHostReverseProxy(b.url)
+	b.connection = reverseProxy
+	return reverseProxy, true
+}
+
+func (b *backend) getOpenConnection() (*httputil.ReverseProxy, bool) {
+	b.mu.RLock()
+	readyToServe := b.isAlive && b.isReady
+	if b.connection != nil && readyToServe {
+		return b.connection, true
+	} else if b.connection == nil && readyToServe {
+		b.mu.RUnlock()
+		return b.openNewConnection()
+	}
+
+	return nil, false
 }
 
 type Server struct {
@@ -29,9 +51,8 @@ type Server struct {
 	server   *http.Server
 	backends []*backend
 	beCount  int64
-	// TODO: Consider improving the granularity of the lock
-	mu  sync.RWMutex
-	idx int64
+	mu       sync.RWMutex
+	idx      int64
 }
 
 func New(cfg *pb.Config) (*Server, error) {
@@ -68,26 +89,12 @@ func New(cfg *pb.Config) (*Server, error) {
 	return lb, nil
 }
 
-func (s *Server) openNewConnection(idx int64) *backend {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	reverseProxy := httputil.NewSingleHostReverseProxy(s.backends[idx].url)
-	s.backends[idx].connection = reverseProxy
-	s.backends[idx].isReady = true // TODO implement readiness checks
-	return s.backends[idx]
-}
-
-func (s *Server) next() *backend {
-	s.mu.RLock()
+func (s *Server) pickNext() *httputil.ReverseProxy {
 	for {
 		currIdx := atomic.AddInt64(&s.idx, 1) % s.beCount
-		if nextBE := s.backends[currIdx]; nextBE.connection != nil && nextBE.isAlive {
-			s.mu.RUnlock()
-			return nextBE
-		} else if nextBE.connection == nil && nextBE.isAlive && nextBE.isReady { // try to open a new connection
-			s.mu.RUnlock()
-			return s.openNewConnection(currIdx)
-		} // else check next backend, this one is not alive
+		if connection, ready := s.backends[currIdx].getOpenConnection(); ready {
+			return connection
+		}
 		// TODO: Do some exponential backoff if all backends are dead
 	}
 }
@@ -95,8 +102,7 @@ func (s *Server) next() *backend {
 // ServeHTTP is Round Robin handler for loadbalancing
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received request for %v\n", r.URL)
-	be := s.next()
-	be.connection.ServeHTTP(w, r)
+	s.pickNext().ServeHTTP(w, r)
 }
 
 func (s *Server) ListenAndServe(ctx context.Context) error {
