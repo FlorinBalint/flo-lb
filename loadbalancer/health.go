@@ -5,19 +5,18 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/FlorinBalint/flo_lb/loadbalancer/algos"
 )
 
 // pingBackend checks if the backend is alive.
-func (s *Server) liveness(ctx context.Context, aliveCh chan bool, be *backend) {
-	be.mu.RLock()
-	defer be.mu.RUnlock()
-	defer close(aliveCh)
-	healthPath := be.url.String() + s.cfg.GetHealthCheck().GetProbe().GetHttpGet().GetPath()
+func (s *Server) alive(ctx context.Context, be *algos.Backend) bool {
+	healthPath := be.URL() + s.cfg.GetHealthCheck().GetProbe().GetHttpGet().GetPath()
 	// TODO Healthcheck: Consider adding extra args to the request.
 	req, err := http.NewRequest("GET", healthPath, nil)
 	if err != nil {
-		aliveCh <- false
-		log.Printf("Error creating request to %v: %v", req, err)
+		log.Printf("Error creating request to %v: %v\n, will consider the backend down", req, err)
+		return false
 	}
 	client := http.Client{
 		Timeout: 15 * time.Second,
@@ -26,32 +25,24 @@ func (s *Server) liveness(ctx context.Context, aliveCh chan bool, be *backend) {
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("%v is unreachable, error: %v", healthPath, err.Error())
-		aliveCh <- false
-		return
+		return false
 	} else if resp.StatusCode != http.StatusOK {
 		log.Printf("Received non-OK status: %v", resp.StatusCode)
-		aliveCh <- false
-		return
+		return false
 	}
-	aliveCh <- true
+	return true
 }
 
-func (s *Server) checkHealth(ctx context.Context, be *backend) {
+func (s *Server) checkHealth(ctx context.Context, be *algos.Backend) {
 	msg := "alive"
-	aliveCh := make(chan bool)
-	go s.liveness(ctx, aliveCh, be)
-	select {
-	case <-ctx.Done():
-		log.Printf("context canceled")
-		break
-	case be.isAlive = <-aliveCh:
-		if !be.isAlive {
-			msg = "dead"
-		}
+	alive := s.alive(ctx, be)
+	be.SetAlive(alive)
+	if !alive {
+		msg = "dead"
 	}
 
 	// We need to make sure that all threads / routines see the updated value
-	log.Printf("%v checked %v by healthcheck", be.url, msg)
+	log.Printf("%v checked %v by healthcheck", be.URL(), msg)
 }
 
 func (s *Server) StartHealthChecks(ctx context.Context) {
@@ -64,21 +55,11 @@ func (s *Server) StartHealthChecks(ctx context.Context) {
 	time.Sleep(initDelay)
 
 	log.Printf("Starting to check the health of backends")
-	// Now do requests asynchronously
-	go func() {
-		t := time.NewTicker(s.cfg.GetHealthCheck().GetPeriod().AsDuration())
-		defer t.Stop()
-		for true {
-			select {
-			case <-ctx.Done():
-				break
-			case <-t.C:
-				s.mu.RLock() // lock in case the backends array changes (future work)
-				for _, backend := range s.backends {
-					go s.checkHealth(ctx, backend)
-				}
-				s.mu.RUnlock()
-			}
-		}
-	}()
+	period := s.cfg.GetHealthCheck().GetPeriod().AsDuration()
+	s.lbAlgo.RegisterCheck(
+		ctx,
+		algos.NewChecker(
+			s.checkHealth, period,
+		),
+	)
 }

@@ -25,7 +25,6 @@ func alwaysAliveBackend() *testBackend {
 		if r.URL.Path != "/healthz" { // don't count health checks
 			atomic.AddInt32(&testBe.requestsReceived, 1)
 		}
-
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
@@ -42,7 +41,6 @@ func neverAliveBackend() *testBackend {
 			http.Error(w, "I am not alive!", http.StatusInternalServerError)
 			return
 		}
-
 		atomic.AddInt32(&testBe.requestsReceived, 1)
 	})
 	testBe.handler = tbeHandler
@@ -172,7 +170,9 @@ func TestLBHandler(t *testing.T) {
 			if err != nil {
 				t.Errorf("Error creating LB: %v", err)
 			}
-			lb.StartHealthChecks(context.Background())
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			lb.StartHealthChecks(ctx)
 
 			frontend := httptest.NewServer(
 				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

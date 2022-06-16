@@ -6,53 +6,26 @@ import (
 	"log"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"sync"
-	"sync/atomic"
 
+	"github.com/FlorinBalint/flo_lb/loadbalancer/algos"
 	pb "github.com/FlorinBalint/flo_lb/proto"
 )
 
-type backend struct {
-	url        *url.URL
-	connection *httputil.ReverseProxy
-	isAlive    bool
-	isReady    bool
-	mu         sync.RWMutex
+type lbAlgorithm interface {
+	Register(rawURL string) error
+	Unregister(url string) error
+	Next() *httputil.ReverseProxy
+	RegisterCheck(ctx context.Context, chk *algos.Checker)
 }
 
-func (b *backend) String() string {
-	return fmt.Sprintf("address: %v", b.url)
-}
-
-func (b *backend) openNewConnection() (*httputil.ReverseProxy, bool) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	reverseProxy := httputil.NewSingleHostReverseProxy(b.url)
-	b.connection = reverseProxy
-	return reverseProxy, true
-}
-
-func (b *backend) getOpenConnection() (*httputil.ReverseProxy, bool) {
-	b.mu.RLock()
-	readyToServe := b.isAlive && b.isReady
-	if b.connection != nil && readyToServe {
-		return b.connection, true
-	} else if b.connection == nil && readyToServe {
-		b.mu.RUnlock()
-		return b.openNewConnection()
-	}
-
-	return nil, false
-}
+var _ lbAlgorithm = (*algos.RoundRobin)(nil)
 
 type Server struct {
-	cfg      *pb.Config
-	server   *http.Server
-	backends []*backend
-	beCount  int64
-	mu       sync.RWMutex
-	idx      int64
+	cfg    *pb.Config
+	server *http.Server
+	lbAlgo lbAlgorithm
+	mu     sync.RWMutex
 }
 
 func New(cfg *pb.Config) (*Server, error) {
@@ -61,25 +34,17 @@ func New(cfg *pb.Config) (*Server, error) {
 		log.Fatalf("Dynamic service discovery is not yet supported!")
 	}
 
-	backends := make([]*backend, len(cfg.GetBackend().GetStatic().GetUrls()))
-	for i := 0; i < len(backends); i++ {
-		rawURL := cfg.GetBackend().GetStatic().GetUrls()[i]
-		url, err := url.Parse(rawURL)
-		if err != nil {
-			return nil, err
-		}
-		backends[i] = &backend{
-			url:     url,
-			isReady: true, // TODO implemenet readiness / health checks
-			isAlive: false,
-		}
+	roundRobin, err := algos.NewRoundRobin(
+		cfg.GetBackend().GetStatic().GetUrls(),
+	)
+
+	if err != nil {
+		return nil, err
 	}
 
 	lb := &Server{
-		cfg:      cfg,
-		backends: backends,
-		beCount:  int64(len(backends)),
-		idx:      -1,
+		cfg:    cfg,
+		lbAlgo: roundRobin,
 	}
 	lb.server = &http.Server{
 		Addr:    fmt.Sprintf(":%v", cfg.GetPort()),
@@ -89,20 +54,10 @@ func New(cfg *pb.Config) (*Server, error) {
 	return lb, nil
 }
 
-func (s *Server) pickNext() *httputil.ReverseProxy {
-	for {
-		currIdx := atomic.AddInt64(&s.idx, 1) % s.beCount
-		if connection, ready := s.backends[currIdx].getOpenConnection(); ready {
-			return connection
-		}
-		// TODO: Do some exponential backoff if all backends are dead
-	}
-}
-
 // ServeHTTP is Round Robin handler for loadbalancing
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received request for %v\n", r.URL)
-	s.pickNext().ServeHTTP(w, r)
+	s.lbAlgo.Next().ServeHTTP(w, r)
 }
 
 func (s *Server) ListenAndServe(ctx context.Context) error {
