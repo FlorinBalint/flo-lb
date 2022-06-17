@@ -1,0 +1,21 @@
+name: "flo-lb"
+port: 8080
+backend {
+  dynamic {
+    register_path: "/register"
+    deregister_path: "/deregister"
+  }
+}
+health_check {
+  probe {
+    http_get {
+      path: "/healthz"
+    }
+  }
+  initial_delay {
+    seconds: 5
+  }
+  period {
+    seconds: 5
+  }
+}

@@ -3,106 +3,145 @@ package loadbalancer
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"sync"
-	"sync/atomic"
 
+	"github.com/FlorinBalint/flo_lb/loadbalancer/algos"
 	pb "github.com/FlorinBalint/flo_lb/proto"
+	"google.golang.org/protobuf/proto"
 )
 
-type backend struct {
-	url        *url.URL
-	connection *httputil.ReverseProxy
-	isAlive    bool
-	isReady    bool
-	mu         sync.RWMutex
+type lbAlgorithm interface {
+	Register(rawURL string) error
+	Deregister(url string) error
+	Next() http.Handler
+	RegisterCheck(ctx context.Context, chk *algos.Checker)
 }
 
-func (b *backend) String() string {
-	return fmt.Sprintf("address: %v", b.url)
-}
-
-func (b *backend) openNewConnection() (*httputil.ReverseProxy, bool) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	reverseProxy := httputil.NewSingleHostReverseProxy(b.url)
-	b.connection = reverseProxy
-	return reverseProxy, true
-}
-
-func (b *backend) getOpenConnection() (*httputil.ReverseProxy, bool) {
-	b.mu.RLock()
-	readyToServe := b.isAlive && b.isReady
-	if b.connection != nil && readyToServe {
-		return b.connection, true
-	} else if b.connection == nil && readyToServe {
-		b.mu.RUnlock()
-		return b.openNewConnection()
-	}
-
-	return nil, false
-}
+var _ lbAlgorithm = (*algos.RoundRobin)(nil)
 
 type Server struct {
-	cfg      *pb.Config
-	server   *http.Server
-	backends []*backend
-	beCount  int64
-	mu       sync.RWMutex
-	idx      int64
+	cfg    *pb.Config
+	server *http.Server
+	lbAlgo lbAlgorithm
+	mu     sync.RWMutex
 }
 
 func New(cfg *pb.Config) (*Server, error) {
-	if cfg.GetBackend().GetDynamic() != nil {
-		// TODO(issues/5): Implement dynamic service discovery
-		log.Fatalf("Dynamic service discovery is not yet supported!")
+	var roundRobin lbAlgorithm
+	var err error
+	mux := http.NewServeMux()
+	lb := &Server{
+		cfg: cfg,
+		server: &http.Server{
+			Addr:    fmt.Sprintf(":%v", cfg.GetPort()),
+			Handler: mux,
+		},
 	}
 
-	backends := make([]*backend, len(cfg.GetBackend().GetStatic().GetUrls()))
-	for i := 0; i < len(backends); i++ {
-		rawURL := cfg.GetBackend().GetStatic().GetUrls()[i]
-		url, err := url.Parse(rawURL)
+	if cfg.GetBackend().GetDynamic() != nil {
+		roundRobin, err = algos.NewRoundRobin(nil)
 		if err != nil {
 			return nil, err
 		}
-		backends[i] = &backend{
-			url:     url,
-			isReady: true, // TODO implemenet readiness / health checks
-			isAlive: false,
+		mux.Handle("/", http.HandlerFunc(lb.ServeHTTP))
+		mux.Handle(cfg.Backend.GetDynamic().GetRegisterPath(), http.HandlerFunc(lb.RegisterNew))
+		mux.Handle(cfg.Backend.GetDynamic().GetDeregisterPath(), http.HandlerFunc(lb.Deregister))
+	} else if cfg.GetBackend().GetStatic() != nil {
+		roundRobin, err = algos.NewRoundRobin(
+			cfg.GetBackend().GetStatic().GetUrls(),
+		)
+		if err != nil {
+			return nil, err
 		}
+		mux.Handle("/", http.HandlerFunc(lb.ServeHTTP))
 	}
 
-	lb := &Server{
-		cfg:      cfg,
-		backends: backends,
-		beCount:  int64(len(backends)),
-		idx:      -1,
-	}
-	lb.server = &http.Server{
-		Addr:    fmt.Sprintf(":%v", cfg.GetPort()),
-		Handler: http.HandlerFunc(lb.ServeHTTP),
-	}
+	lb.lbAlgo = roundRobin
 
 	return lb, nil
 }
 
-func (s *Server) pickNext() *httputil.ReverseProxy {
-	for {
-		currIdx := atomic.AddInt64(&s.idx, 1) % s.beCount
-		if connection, ready := s.backends[currIdx].getOpenConnection(); ready {
-			return connection
-		}
-		// TODO: Do some exponential backoff if all backends are dead
+func (s *Server) RegisterNew(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Received register request")
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Error reading request"))
+		return
+	}
+	regReq := &pb.RegisterRequest{}
+	if err := proto.Unmarshal(body, regReq); err != nil {
+		log.Printf("Failed to parse register request: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Error reading request"))
+		return
+	} else if len(regReq.GetHost()) == 0 {
+		log.Printf("Received register request without host: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Request must have host set"))
+		return
+	}
+
+	var rawUrl string
+	if regReq.Port != nil {
+		rawUrl = fmt.Sprintf("http://%v:%v", regReq.GetHost(), regReq.GetPort())
+	} else {
+		rawUrl = fmt.Sprintf("http://%v", regReq.GetHost())
+	}
+
+	if err := s.lbAlgo.Register(rawUrl); err != nil {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Error handling request"))
+	} else {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Registered"))
+	}
+}
+
+func (s *Server) Deregister(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Received deregister request")
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Error reading request"))
+		return
+	}
+	regReq := &pb.DeregisterRequest{}
+	if err := proto.Unmarshal(body, regReq); err != nil {
+		log.Printf("Failed to parse unregister request: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Error reading request"))
+		return
+	} else if len(regReq.GetHost()) == 0 {
+		log.Printf("Received unregister request without host: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Request must have host set"))
+		return
+	}
+
+	var rawUrl string
+	if regReq.Port != nil {
+		rawUrl = fmt.Sprintf("http://%v:%v", regReq.GetHost(), regReq.GetPort())
+	} else {
+		rawUrl = fmt.Sprintf("http://%v", regReq.GetHost())
+	}
+
+	if err := s.lbAlgo.Deregister(rawUrl); err != nil {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Error handling request"))
+	} else {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Registered"))
 	}
 }
 
 // ServeHTTP is Round Robin handler for loadbalancing
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received request for %v\n", r.URL)
-	s.pickNext().ServeHTTP(w, r)
+	s.lbAlgo.Next().ServeHTTP(w, r)
 }
 
 func (s *Server) ListenAndServe(ctx context.Context) error {

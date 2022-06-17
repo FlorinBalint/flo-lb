@@ -4,8 +4,22 @@ option go_package = "github.com/FlorinBalint/flo_lb/proto";
 
 import "google/protobuf/duration.proto";
 
+message RegisterRequest {
+  optional string host = 1;
+
+  optional int32 port = 2;
+}
+
+message DeregisterRequest {
+  optional string host = 1;
+
+  optional int32 port = 2;
+}
+
 message DynamicBackends {
-  // TODO(issues/5): Implement service discovery
+  optional string register_path = 1;
+
+  optional string deregister_path = 2;  
 }
 
 message StaticBackends {
