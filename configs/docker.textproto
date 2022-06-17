@@ -1,9 +1,9 @@
 name: "flo-lb"
 port: 8080
 backend {
-  static {
-    urls: "http://host.docker.internal:8081"
-    urls: "http://host.docker.internal:8082"
+  dynamic {
+    register_path: "/register"
+    deregister_path: "/deregister"
   }
 }
 health_check {
