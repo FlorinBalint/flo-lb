@@ -3,19 +3,20 @@ package loadbalancer
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
-	"net/http/httputil"
 	"sync"
 
 	"github.com/FlorinBalint/flo_lb/loadbalancer/algos"
 	pb "github.com/FlorinBalint/flo_lb/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 type lbAlgorithm interface {
 	Register(rawURL string) error
-	Unregister(url string) error
-	Next() *httputil.ReverseProxy
+	Deregister(url string) error
+	Next() http.Handler
 	RegisterCheck(ctx context.Context, chk *algos.Checker)
 }
 
@@ -29,29 +30,112 @@ type Server struct {
 }
 
 func New(cfg *pb.Config) (*Server, error) {
-	if cfg.GetBackend().GetDynamic() != nil {
-		// TODO(issues/5): Implement dynamic service discovery
-		log.Fatalf("Dynamic service discovery is not yet supported!")
-	}
-
-	roundRobin, err := algos.NewRoundRobin(
-		cfg.GetBackend().GetStatic().GetUrls(),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
+	var roundRobin lbAlgorithm
+	var err error
+	mux := http.NewServeMux()
 	lb := &Server{
-		cfg:    cfg,
-		lbAlgo: roundRobin,
+		cfg: cfg,
+		server: &http.Server{
+			Addr:    fmt.Sprintf(":%v", cfg.GetPort()),
+			Handler: mux,
+		},
 	}
-	lb.server = &http.Server{
-		Addr:    fmt.Sprintf(":%v", cfg.GetPort()),
-		Handler: http.HandlerFunc(lb.ServeHTTP),
+
+	if cfg.GetBackend().GetDynamic() != nil {
+		roundRobin, err = algos.NewRoundRobin(nil)
+		if err != nil {
+			return nil, err
+		}
+		mux.Handle("/", http.HandlerFunc(lb.ServeHTTP))
+		mux.Handle(cfg.Backend.GetDynamic().GetRegisterPath(), http.HandlerFunc(lb.RegisterNew))
+		mux.Handle(cfg.Backend.GetDynamic().GetDeregisterPath(), http.HandlerFunc(lb.Deregister))
+	} else if cfg.GetBackend().GetStatic() != nil {
+		roundRobin, err = algos.NewRoundRobin(
+			cfg.GetBackend().GetStatic().GetUrls(),
+		)
+		if err != nil {
+			return nil, err
+		}
+		mux.Handle("/", http.HandlerFunc(lb.ServeHTTP))
 	}
+
+	lb.lbAlgo = roundRobin
 
 	return lb, nil
+}
+
+func (s *Server) RegisterNew(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Received register request")
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Error reading request"))
+		return
+	}
+	regReq := &pb.RegisterRequest{}
+	if err := proto.Unmarshal(body, regReq); err != nil {
+		log.Printf("Failed to parse register request: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Error reading request"))
+		return
+	} else if len(regReq.GetHost()) == 0 {
+		log.Printf("Received register request without host: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Request must have host set"))
+		return
+	}
+
+	var rawUrl string
+	if regReq.Port != nil {
+		rawUrl = fmt.Sprintf("http://%v:%v", regReq.GetHost(), regReq.GetPort())
+	} else {
+		rawUrl = fmt.Sprintf("http://%v", regReq.GetHost())
+	}
+
+	if err := s.lbAlgo.Register(rawUrl); err != nil {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Error handling request"))
+	} else {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Registered"))
+	}
+}
+
+func (s *Server) Deregister(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Received deregister request")
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Error reading request"))
+		return
+	}
+	regReq := &pb.DeregisterRequest{}
+	if err := proto.Unmarshal(body, regReq); err != nil {
+		log.Printf("Failed to parse unregister request: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Error reading request"))
+		return
+	} else if len(regReq.GetHost()) == 0 {
+		log.Printf("Received unregister request without host: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Request must have host set"))
+		return
+	}
+
+	var rawUrl string
+	if regReq.Port != nil {
+		rawUrl = fmt.Sprintf("http://%v:%v", regReq.GetHost(), regReq.GetPort())
+	} else {
+		rawUrl = fmt.Sprintf("http://%v", regReq.GetHost())
+	}
+
+	if err := s.lbAlgo.Deregister(rawUrl); err != nil {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Error handling request"))
+	} else {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Registered"))
+	}
 }
 
 // ServeHTTP is Round Robin handler for loadbalancing

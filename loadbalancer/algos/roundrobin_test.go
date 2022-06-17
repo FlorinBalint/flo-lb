@@ -66,7 +66,6 @@ func TestNext(t *testing.T) {
 			initialIdx:  1,
 			expectedIdx: 2, // TODO
 		},
-
 		{
 			name:        "Wraps back to first after skiping unready",
 			backends:    []*Backend{upAndReadyBackend(t, 0), upAndReadyBackend(t, 0), unreadyBackend(t, 1)},
@@ -126,6 +125,13 @@ func TestRegister(t *testing.T) {
 			registeredUrl: "http://localhost:8083",
 			initialIdx:    4,
 			expectedIdx:   2,
+		},
+		{
+			name:          "Register existing backend doesn't do anything",
+			backendUrls:   []string{"http://localhost:8081", "http://localhost:8082"},
+			registeredUrl: "http://localhost:8081",
+			initialIdx:    4,
+			expectedIdx:   4,
 		},
 	}
 
@@ -210,7 +216,7 @@ func TestUnregister(t *testing.T) {
 				t.Errorf("error creating round robin algorithm %v", t)
 			}
 			rr.idx = test.initialIdx
-			rr.Unregister(test.removedUrl)
+			rr.Deregister(test.removedUrl)
 			if rr.idx != int64(test.expectedIdx) {
 				t.Errorf("rr.Unregister(), want index %v, got %v", test.expectedIdx, rr.idx)
 			}

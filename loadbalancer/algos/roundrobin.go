@@ -48,12 +48,16 @@ func (rr *RoundRobin) Register(rawURL string) error {
 	rr.mu.Lock()
 	defer rr.mu.Unlock()
 	url, err := url.Parse(rawURL)
+	if _, present := rr.beIndices[rawURL]; present {
+		return fmt.Errorf("%v already registered", rawURL)
+	}
 	if err != nil {
 		return err
 	}
 
 	newBackend := &Backend{
-		url: url,
+		url:    url,
+		status: readyMask, // TODO: Implement readiness checks
 	}
 	if rr.idx >= 0 {
 		rr.idx = rr.idx % rr.beCount // make sure the algorithm is fair
@@ -67,7 +71,7 @@ func (rr *RoundRobin) Register(rawURL string) error {
 	return nil
 }
 
-func (rr *RoundRobin) Unregister(url string) error {
+func (rr *RoundRobin) Deregister(url string) error {
 	rr.mu.Lock()
 	defer rr.mu.Unlock()
 	beIndex, present := rr.beIndices[url]
