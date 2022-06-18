@@ -16,7 +16,7 @@ import (
 type lbAlgorithm interface {
 	Register(rawURL string) error
 	Deregister(url string) error
-	Next() http.Handler
+	Handler(r *http.Request) http.Handler
 	RegisterCheck(ctx context.Context, chk *algos.Checker)
 }
 
@@ -141,7 +141,7 @@ func (s *Server) Deregister(w http.ResponseWriter, r *http.Request) {
 // ServeHTTP is Round Robin handler for loadbalancing
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received request for %v\n", r.URL)
-	s.lbAlgo.Next().ServeHTTP(w, r)
+	s.lbAlgo.Handler(r).ServeHTTP(w, r)
 }
 
 func (s *Server) ListenAndServe(ctx context.Context) error {

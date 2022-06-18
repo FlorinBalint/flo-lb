@@ -96,7 +96,7 @@ func (rr *RoundRobin) Deregister(url string) error {
 	return nil
 }
 
-func (rr *RoundRobin) Next() http.Handler {
+func (rr *RoundRobin) Handler(r *http.Request) http.Handler {
 	rr.mu.RLock()
 	defer rr.mu.RUnlock()
 	for {

@@ -41,7 +41,7 @@ func upAndReadyBackend(t *testing.T, idx int) *Backend {
 	return backendWithStatus(t, aliveAndReady, idx)
 }
 
-func TestNext(t *testing.T) {
+func TestHandler(t *testing.T) {
 	tests := []struct {
 		name        string
 		backends    []*Backend
@@ -82,9 +82,9 @@ func TestNext(t *testing.T) {
 				beCount:  int64(len(test.backends)),
 			}
 			log.Printf("idx %v", rr.idx)
-			rr.Next()
+			rr.Handler(nil)
 			if rr.idx != int64(test.expectedIdx) {
-				t.Errorf("Next() want index %v, got %v", test.expectedIdx, rr.idx)
+				t.Errorf("Handler() want index %v, got %v", test.expectedIdx, rr.idx)
 			}
 		})
 	}

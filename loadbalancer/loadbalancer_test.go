@@ -225,7 +225,7 @@ func (fakeAlgo *fakeLbAlgo) Deregister(rawURL string) error {
 	return nil
 }
 
-func (fakeAlgo *fakeLbAlgo) Next() http.Handler {
+func (fakeAlgo *fakeLbAlgo) Handler(r *http.Request) http.Handler {
 	return nil
 }
 
