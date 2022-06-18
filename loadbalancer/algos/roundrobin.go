@@ -3,6 +3,7 @@ package algos
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"sync/atomic"
@@ -49,7 +50,8 @@ func (rr *RoundRobin) Register(rawURL string) error {
 	defer rr.mu.Unlock()
 	url, err := url.Parse(rawURL)
 	if _, present := rr.beIndices[rawURL]; present {
-		return fmt.Errorf("%v already registered", rawURL)
+		log.Printf("%v already registered", rawURL)
+		return nil
 	}
 	if err != nil {
 		return err

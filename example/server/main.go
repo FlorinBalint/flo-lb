@@ -78,15 +78,21 @@ func deregisterRequest() (*http.Request, error) {
 	}
 }
 
-func registerToLBIfNeeded() {
+func registerToLBIfNeeded() error {
 	if len(*registerURL) != 0 {
 		register, err := registerRequest()
 		if err != nil {
 			log.Fatal(err)
 		}
 		log.Printf("Registering to %v", register.URL)
-		http.DefaultClient.Do(register)
+		resp, err := http.DefaultClient.Do(register)
+		if err != nil {
+			return fmt.Errorf("Error registering %v", err)
+		} else if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("Register got non OK status %v", resp.StatusCode)
+		}
 	}
+	return nil
 }
 
 func deregisterIfNeeded() {
@@ -96,7 +102,12 @@ func deregisterIfNeeded() {
 			log.Fatal(err)
 		}
 		log.Printf("De-registering to %v", deregister.URL)
-		http.DefaultClient.Do(deregister)
+		resp, err := http.DefaultClient.Do(deregister)
+		if err != nil {
+			log.Fatalf("Error deregistering %v", err)
+		} else if resp.StatusCode != http.StatusOK {
+			log.Fatalf("Deregister got non OK status %v", resp.StatusCode)
+		}
 	}
 }
 
@@ -114,8 +125,12 @@ func main() {
 	}
 
 	srv.RegisterOnShutdown(deregisterIfNeeded)
-	registerToLBIfNeeded()
-	err := srv.ListenAndServe()
+	err := registerToLBIfNeeded()
+	if err != nil {
+		log.Fatalf("Error registering to the LB")
+	}
+
+	err = srv.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		log.Printf("server closed\n")
 	} else if err != nil {
