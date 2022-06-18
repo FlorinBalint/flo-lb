@@ -127,7 +127,7 @@ func main() {
 	srv.RegisterOnShutdown(deregisterIfNeeded)
 	err := registerToLBIfNeeded()
 	if err != nil {
-		log.Fatalf("Error registering to the LB")
+		log.Fatalf("Error registering to the LB %v", err)
 	}
 
 	err = srv.ListenAndServe()

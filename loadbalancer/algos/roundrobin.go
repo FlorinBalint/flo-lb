@@ -7,15 +7,19 @@ import (
 	"net/http"
 	"net/url"
 	"sync/atomic"
+	"time"
 
 	"sync"
 )
+
+const maxBackofs = 5
 
 type RoundRobin struct {
 	backends  []*Backend
 	beIndices map[string]int
 	beCount   int64
 	idx       int64
+	backoff   *Backoff
 	mu        sync.RWMutex
 }
 
@@ -42,17 +46,24 @@ func NewRoundRobin(rawURLs []string) (*RoundRobin, error) {
 		backends:  backends,
 		beIndices: beIndices,
 		beCount:   int64(len(backends)),
+		// TODO consider making all these (and max backoffs) configurable
+		backoff: NewBackoff(
+			300*time.Millisecond, // initial sleep
+			3*time.Second,        // max sleep
+			10*time.Second,       // sleep time reset
+			2.0,                  // growth factor
+		),
 	}, nil
 }
 
 func (rr *RoundRobin) Register(rawURL string) error {
 	rr.mu.Lock()
 	defer rr.mu.Unlock()
-	url, err := url.Parse(rawURL)
 	if _, present := rr.beIndices[rawURL]; present {
 		log.Printf("%v already registered", rawURL)
 		return nil
 	}
+	url, err := url.Parse(rawURL)
 	if err != nil {
 		return err
 	}
@@ -99,10 +110,24 @@ func (rr *RoundRobin) Deregister(url string) error {
 func (rr *RoundRobin) Handler(r *http.Request) http.Handler {
 	rr.mu.RLock()
 	defer rr.mu.RUnlock()
+	if rr.beCount == 0 {
+		return UnavailableHandler{}
+	}
+
+	tries := int64(0)
+	backOffs := 0
 	for {
 		currIdx := atomic.AddInt64(&rr.idx, 1) % rr.beCount
 		if connection, ready := rr.backends[currIdx].GetOpenConnection(); ready {
 			return connection
+		}
+		tries++
+		if tries%rr.beCount == 0 {
+			rr.backoff.WaitABit()
+			backOffs++
+			if backOffs == maxBackofs {
+				return UnavailableHandler{}
+			}
 		}
 		// TODO: Do some exponential backoff if all backends are dead
 	}

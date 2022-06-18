@@ -93,8 +93,8 @@ func (s *Server) RegisterNew(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.lbAlgo.Register(rawUrl); err != nil {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Error handling request"))
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Error handling register"))
 	} else {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Registered"))
@@ -130,8 +130,8 @@ func (s *Server) Deregister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.lbAlgo.Deregister(rawUrl); err != nil {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Error handling request"))
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Error handling deregister"))
 	} else {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Registered"))

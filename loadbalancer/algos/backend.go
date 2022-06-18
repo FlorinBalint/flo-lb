@@ -20,6 +20,13 @@ type Backend struct {
 	mu         sync.RWMutex
 }
 
+type UnavailableHandler struct{}
+
+func (UnavailableHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusServiceUnavailable)
+	w.Write([]byte("No available service\n"))
+}
+
 func (b *Backend) String() string {
 	return fmt.Sprintf("address: %v", b.url)
 }
