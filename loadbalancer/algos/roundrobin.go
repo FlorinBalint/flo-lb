@@ -123,13 +123,12 @@ func (rr *RoundRobin) Handler(r *http.Request) http.Handler {
 		}
 		tries++
 		if tries%rr.beCount == 0 {
-			rr.backoff.WaitABit()
-			backOffs++
 			if backOffs == maxBackofs {
 				return UnavailableHandler{}
 			}
+			rr.backoff.WaitABit()
+			backOffs++
 		}
-		// TODO: Do some exponential backoff if all backends are dead
 	}
 }
 

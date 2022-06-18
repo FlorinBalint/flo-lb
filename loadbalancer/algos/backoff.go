@@ -29,7 +29,6 @@ type Backoff struct {
 }
 
 func NewBackoff(initialSleep, maxSleep, timeToReset time.Duration, growth float64) *Backoff {
-	log.Printf("Backoff initialSleep: %v, maxSleep:%v, timeToReset: %v, growth:%v", initialSleep, maxSleep, timeToReset, growth)
 	return &Backoff{
 		time:             defaultTime,
 		sleep:            defaultSleeper,
