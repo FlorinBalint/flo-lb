@@ -1,0 +1,29 @@
+name: "flo-lb"
+port: 8080
+backend {
+  static {
+    urls: "http://localhost:8081"
+    urls: "http://localhost:8082"
+  }
+}
+protocol: HTTPS
+cert {
+  domain: "flo_lb.ch"
+  local {
+    cert_path: "../src/configs/cert/localhost/flo_lb.crt"
+    private_key_path: "../src/configs/cert/localhost/flo_lb.key"
+  }
+}
+health_check {
+  probe {
+    http_get {
+      path: "/healthz"
+    }
+  }
+  initial_delay {
+    seconds: 10
+  }
+  period {
+    seconds: 5
+  }
+}

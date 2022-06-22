@@ -37,7 +37,6 @@ message BackendConfig {
   }
 }
 
-
 message HttpGet {
   optional string path = 1;
   // TODO conside allowing passing extra args
@@ -65,12 +64,54 @@ message HealthCheck {
   optional google.protobuf.Duration period = 3;
 }
 
+enum Protocol {
+  HTTP = 0;
+  HTTPS = 1;
+  TCP = 2;  // TODO(#2): Add L4 load balancing.
+}
+
+message LocalCert {
+  // Path to the certificate (relative to current directory)
+  optional string cert_path = 1;
+
+  // Path to the private key
+  optional string private_key_path = 2;
+  
+  /// CA certificate to verify peer against
+  optional string ca_cert = 3;
+}
+
+message AcmeCert {
+  // URL for the isuing CA ACME server directory
+  // e.g. https://acme-v02.api.letsencrypt.org/directory
+  string acme_server_dir = 1;
+
+  /// CA certificate to verify peer against
+  optional string ca_cert = 2;
+}
+
+message CertConfig {
+
+  optional string domain = 1;
+  
+  oneof cert_source {
+    LocalCert local = 3;
+    
+    AcmeCert acme = 4;
+  }
+  
+}
+
 message Config {
   // Name of the load balancer, defaults to flo-lb
   optional string name = 1;
 
   // Port listening on
   optional int32 port = 2;
+
+  optional Protocol protocol = 5;
+
+  optional CertConfig cert = 6;
 
   // Configuration about the backends
   optional BackendConfig backend = 3;

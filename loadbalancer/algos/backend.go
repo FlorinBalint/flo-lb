@@ -89,6 +89,7 @@ func (b *Backend) openConnection() http.Handler {
 	if b.connection != nil {
 		return b.connection
 	}
+	// TODO(#1): Add possibility to do TLS handshakes here as well (configurable).
 	reverseProxy := httputil.NewSingleHostReverseProxy(b.url)
 	b.connection = reverseProxy
 	return reverseProxy
