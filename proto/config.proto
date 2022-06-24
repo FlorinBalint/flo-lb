@@ -35,6 +35,11 @@ message BackendConfig {
 
     DynamicBackends dynamic = 2;    
   }
+
+  // Wether or not to talk TLS to the backend.
+  optional bool use_tls = 3;
+
+  // TODO(#16): Support mutual authentication between LB and backend.
 }
 
 message HttpGet {
@@ -76,30 +81,30 @@ message LocalCert {
 
   // Path to the private key
   optional string private_key_path = 2;
-  
-  /// CA certificate to verify peer against
-  optional string ca_cert = 3;
 }
 
 message AcmeCert {
+  
+  // Domain for which we ask a certificate
+  string domain = 1;
+
   // URL for the isuing CA ACME server directory
   // e.g. https://acme-v02.api.letsencrypt.org/directory
-  string acme_server_dir = 1;
+  string server_dir = 2;
 
-  /// CA certificate to verify peer against
-  optional string ca_cert = 2;
+  // Disk location to save certificates.
+  string cache_directory = 3;
 }
 
 message CertConfig {
-
-  optional string domain = 1;
   
   oneof cert_source {
-    LocalCert local = 3;
+    LocalCert local = 1;
     
-    AcmeCert acme = 4;
+    AcmeCert acme = 2;
   }
-  
+
+  // TODO(#16): Support mTLS
 }
 
 message Config {

@@ -1,0 +1,29 @@
+name: "flo_lb"
+port: 8080
+backend {
+  dynamic {
+    register_path: "/register"
+    deregister_path: "/deregister"
+  }
+  use_tls: true
+}
+protocol: HTTPS
+cert {
+  acme {
+    domain: "florinbalint.com"
+    server_dir: "https://acme-v02.api.letsencrypt.org/directory"
+  }
+}
+health_check {
+  probe {
+    http_get {
+      path: "/healthz"
+    }
+  }
+  initial_delay {
+    seconds: 10
+  }
+  period {
+    seconds: 5
+  }
+}

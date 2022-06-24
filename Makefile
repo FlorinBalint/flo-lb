@@ -34,12 +34,16 @@ build: ${GOPROTO}/go.mod config_proto
 	go build ${LDFLAGS} -o ${GOBIN}/${BINARY} main.go
 
 tls_cert:
-	mkdir -p $(dir ${GOSRC}/${TLS_CERT_FILE})
-	cp ${mkfile_dir}${TLS_CERT_FILE} $(dir ${GOSRC}/${TLS_CERT_FILE})
+	@if [ ! -z ${TLS_CERT_FILE} ]; then\
+		mkdir -p $(dir ${GOSRC}/${TLS_CERT_FILE});\
+		cp ${mkfile_dir}${TLS_CERT_FILE} $(dir ${GOSRC}/${TLS_CERT_FILE});\
+	fi
 
 tls_key:
-	mkdir -p $(dir ${GOSRC}/${TLS_KEY_FILE})
-	cp ${mkfile_dir}${TLS_KEY_FILE} $(dir ${GOSRC}/${TLS_KEY_FILE})
+	@if [ ! -z ${TLS_KEY_FILE} ]; then\
+		mkdir -p $(dir ${GOSRC}/${TLS_KEY_FILE});\
+		cp ${mkfile_dir}${TLS_KEY_FILE} $(dir ${GOSRC}/${TLS_KEY_FILE});\
+	fi
 
 run: ${GOSRC}/${CONFIG_FILE} tls_cert tls_key
 	cd ${GOBIN} && ./${BINARY} --config_file="${GOSRC}/${CONFIG_FILE}"

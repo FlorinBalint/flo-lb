@@ -165,7 +165,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	}
 
 	if s.cfg.GetHealthCheck() != nil {
-		s.StartHealthChecks(lbContext)
+		go s.StartHealthChecks(lbContext)
 	}
 
 	log.Printf("Starting load balancer with backends %v\n", s.cfg.GetBackend().GetStatic().GetUrls())
