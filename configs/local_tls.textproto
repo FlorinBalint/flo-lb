@@ -6,6 +6,14 @@ backend {
     urls: "http://localhost:8082"
   }
 }
+protocol: HTTPS
+cert {
+  domain: "flo_lb.ch"
+  local {
+    cert_path: "../src/configs/cert/localhost/flo_lb.crt"
+    private_key_path: "../src/configs/cert/localhost/flo_lb.key"
+  }
+}
 health_check {
   probe {
     http_get {

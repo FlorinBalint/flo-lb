@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+
+	pb "github.com/FlorinBalint/flo_lb/proto"
 )
 
 func backendWithStatus(t *testing.T, status int32, idx int) *Backend {
@@ -137,7 +139,14 @@ func TestRegister(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			rr, err := NewRoundRobin(test.backendUrls)
+			cfg := &pb.BackendConfig{
+				Type: &pb.BackendConfig_Static{
+					Static: &pb.StaticBackends{
+						Urls: test.backendUrls,
+					},
+				},
+			}
+			rr, err := NewRoundRobin(cfg)
 			if err != nil {
 				t.Errorf("error creating round robin algorithm %v", t)
 			}
@@ -211,7 +220,14 @@ func TestUnregister(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			rr, err := NewRoundRobin(test.backendUrls)
+			cfg := &pb.BackendConfig{
+				Type: &pb.BackendConfig_Static{
+					Static: &pb.StaticBackends{
+						Urls: test.backendUrls,
+					},
+				},
+			}
+			rr, err := NewRoundRobin(cfg)
 			if err != nil {
 				t.Errorf("error creating round robin algorithm %v", t)
 			}

@@ -35,8 +35,10 @@ message BackendConfig {
 
     DynamicBackends dynamic = 2;    
   }
-}
 
+  reserved 3;
+  // TODO(#16): Support mutual authentication between LB and backend.
+}
 
 message HttpGet {
   optional string path = 1;
@@ -65,12 +67,54 @@ message HealthCheck {
   optional google.protobuf.Duration period = 3;
 }
 
+enum Protocol {
+  HTTP = 0;
+  HTTPS = 1;
+  TCP = 2;  // TODO(#2): Add L4 load balancing.
+}
+
+message LocalCert {
+  // Path to the certificate (relative to current directory)
+  optional string cert_path = 1;
+
+  // Path to the private key
+  optional string private_key_path = 2;
+}
+
+message AcmeCert {
+  
+  // Domain for which we ask a certificate
+  string domain = 1;
+
+  // URL for the isuing CA ACME server directory
+  // e.g. https://acme-v02.api.letsencrypt.org/directory
+  string server_dir = 2;
+
+  // Disk location to save certificates.
+  string cache_directory = 3;
+}
+
+message CertConfig {
+  
+  oneof cert_source {
+    LocalCert local = 1;
+    
+    AcmeCert acme = 2;
+  }
+
+  // TODO(#16): Support mTLS
+}
+
 message Config {
   // Name of the load balancer, defaults to flo-lb
   optional string name = 1;
 
   // Port listening on
   optional int32 port = 2;
+
+  optional Protocol protocol = 5;
+
+  optional CertConfig cert = 6;
 
   // Configuration about the backends
   optional BackendConfig backend = 3;

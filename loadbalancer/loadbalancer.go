@@ -30,8 +30,6 @@ type Server struct {
 }
 
 func New(cfg *pb.Config) (*Server, error) {
-	var roundRobin lbAlgorithm
-	var err error
 	mux := http.NewServeMux()
 	lb := &Server{
 		cfg: cfg,
@@ -41,25 +39,18 @@ func New(cfg *pb.Config) (*Server, error) {
 		},
 	}
 
-	if cfg.GetBackend().GetDynamic() != nil {
-		roundRobin, err = algos.NewRoundRobin(nil)
-		if err != nil {
-			return nil, err
-		}
-		mux.Handle("/", http.HandlerFunc(lb.ServeHTTP))
-		mux.Handle(cfg.Backend.GetDynamic().GetRegisterPath(), http.HandlerFunc(lb.RegisterNew))
-		mux.Handle(cfg.Backend.GetDynamic().GetDeregisterPath(), http.HandlerFunc(lb.Deregister))
-	} else if cfg.GetBackend().GetStatic() != nil {
-		roundRobin, err = algos.NewRoundRobin(
-			cfg.GetBackend().GetStatic().GetUrls(),
-		)
-		if err != nil {
-			return nil, err
-		}
-		mux.Handle("/", http.HandlerFunc(lb.ServeHTTP))
+	var err error
+	lb.lbAlgo, err = algos.NewRoundRobin(cfg.GetBackend())
+	if err != nil {
+		return nil, err
 	}
 
-	lb.lbAlgo = roundRobin
+	mux.Handle("/", http.HandlerFunc(lb.ServeHTTP))
+	mux.Handle("/healthz", http.HandlerFunc(lb.Health))
+	if cfg.GetBackend().GetDynamic() != nil {
+		mux.Handle(cfg.Backend.GetDynamic().GetRegisterPath(), http.HandlerFunc(lb.RegisterNew))
+		mux.Handle(cfg.Backend.GetDynamic().GetDeregisterPath(), http.HandlerFunc(lb.Deregister))
+	}
 
 	return lb, nil
 }
@@ -138,6 +129,12 @@ func (s *Server) Deregister(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) Health(w http.ResponseWriter, r *http.Request) {
+	log.Printf("got /healthz request\n")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("I am alive"))
+}
+
 // ServeHTTP is Round Robin handler for loadbalancing
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received request for %v\n", r.URL)
@@ -148,12 +145,23 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	lbContext, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// TODO(#1): Validate that we are using https protocol
+	if s.cfg.GetCert() != nil {
+		err := s.SetupTLS(ctx)
+		if err != nil {
+			return fmt.Errorf("error loading certs %v", err)
+		}
+	}
+
 	if s.cfg.GetHealthCheck() != nil {
-		s.StartHealthChecks(lbContext)
+		go s.StartHealthChecks(lbContext)
 	}
 
 	log.Printf("Starting load balancer with backends %v\n", s.cfg.GetBackend().GetStatic().GetUrls())
 	log.Printf("%v balancer will start listening on port %v\n", s.cfg.GetName(), s.cfg.GetPort())
+	if s.cfg.GetProtocol() == pb.Protocol_HTTPS {
+		return s.server.ListenAndServeTLS("", "")
+	}
 	return s.server.ListenAndServe()
 }
 

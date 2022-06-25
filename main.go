@@ -68,6 +68,6 @@ func main() {
 	if errors.Is(err, http.ErrServerClosed) {
 		fmt.Printf("Proxy server was closed")
 	} else if err != nil {
-		fmt.Printf("error starting proxy: %v", err)
+		fmt.Printf("error starting proxy: %v\n", err)
 	}
 }
