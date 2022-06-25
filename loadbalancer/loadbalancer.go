@@ -30,8 +30,6 @@ type Server struct {
 }
 
 func New(cfg *pb.Config) (*Server, error) {
-	var roundRobin lbAlgorithm
-	var err error
 	mux := http.NewServeMux()
 	lb := &Server{
 		cfg: cfg,
@@ -41,27 +39,18 @@ func New(cfg *pb.Config) (*Server, error) {
 		},
 	}
 
-	if cfg.GetBackend().GetDynamic() != nil {
-		roundRobin, err = algos.NewRoundRobin(nil)
-		if err != nil {
-			return nil, err
-		}
-		mux.Handle("/", http.HandlerFunc(lb.ServeHTTP))
-		mux.Handle("/healthz", http.HandlerFunc(lb.Health))
-		mux.Handle(cfg.Backend.GetDynamic().GetRegisterPath(), http.HandlerFunc(lb.RegisterNew))
-		mux.Handle(cfg.Backend.GetDynamic().GetDeregisterPath(), http.HandlerFunc(lb.Deregister))
-	} else if cfg.GetBackend().GetStatic() != nil {
-		roundRobin, err = algos.NewRoundRobin(
-			cfg.GetBackend().GetStatic().GetUrls(),
-		)
-		if err != nil {
-			return nil, err
-		}
-		mux.Handle("/", http.HandlerFunc(lb.ServeHTTP))
-		mux.Handle("/healthz", http.HandlerFunc(lb.Health))
+	var err error
+	lb.lbAlgo, err = algos.NewRoundRobin(cfg.GetBackend())
+	if err != nil {
+		return nil, err
 	}
 
-	lb.lbAlgo = roundRobin
+	mux.Handle("/", http.HandlerFunc(lb.ServeHTTP))
+	mux.Handle("/healthz", http.HandlerFunc(lb.Health))
+	if cfg.GetBackend().GetDynamic() != nil {
+		mux.Handle(cfg.Backend.GetDynamic().GetRegisterPath(), http.HandlerFunc(lb.RegisterNew))
+		mux.Handle(cfg.Backend.GetDynamic().GetDeregisterPath(), http.HandlerFunc(lb.Deregister))
+	}
 
 	return lb, nil
 }

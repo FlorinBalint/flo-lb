@@ -10,20 +10,28 @@ import (
 	"time"
 
 	"sync"
+
+	pb "github.com/FlorinBalint/flo_lb/proto"
 )
 
 const maxBackofs = 5
 
 type RoundRobin struct {
-	backends  []*Backend
-	beIndices map[string]int
-	beCount   int64
-	idx       int64
-	backoff   *Backoff
-	mu        sync.RWMutex
+	tlsBackends bool
+	backends    []*Backend
+	beIndices   map[string]int
+	beCount     int64
+	idx         int64
+	backoff     *Backoff
+	mu          sync.RWMutex
 }
 
-func NewRoundRobin(rawURLs []string) (*RoundRobin, error) {
+func NewRoundRobin(beCfg *pb.BackendConfig) (*RoundRobin, error) {
+	var rawURLs []string
+	if beCfg.GetStatic() != nil {
+		rawURLs = beCfg.GetStatic().GetUrls()
+	}
+
 	backends := make([]*Backend, len(rawURLs))
 	beIndices := make(map[string]int)
 

@@ -48,8 +48,8 @@ tls_key:
 run: ${GOSRC}/${CONFIG_FILE} tls_cert tls_key
 	cd ${GOBIN} && ./${BINARY} --config_file="${GOSRC}/${CONFIG_FILE}"
 	
-test:
-	go test github.com/FlorinBalint/flo_lb/loadbalancer
+test: ${GOPROTO}/go.mod config_proto
+	go test ${mkfile_dir}/...
 
 clean:
 	rm -rf ${BUILD}

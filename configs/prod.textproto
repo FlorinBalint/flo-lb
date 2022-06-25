@@ -1,5 +1,5 @@
 name: "flo_lb"
-port: 8080
+port: 443
 backend {
   dynamic {
     register_path: "/register"

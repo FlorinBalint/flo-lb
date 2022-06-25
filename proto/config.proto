@@ -36,9 +36,7 @@ message BackendConfig {
     DynamicBackends dynamic = 2;    
   }
 
-  // Wether or not to talk TLS to the backend.
-  optional bool use_tls = 3;
-
+  reserved 3;
   // TODO(#16): Support mutual authentication between LB and backend.
 }
 
