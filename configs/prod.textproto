@@ -5,7 +5,6 @@ backend {
     register_path: "/register"
     deregister_path: "/deregister"
   }
-  use_tls: true
 }
 protocol: HTTPS
 cert {
