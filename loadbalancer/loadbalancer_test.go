@@ -75,6 +75,7 @@ func aliveThenNotBackend() *testBackend {
 type testBackend struct {
 	handler          http.Handler
 	requestsReceived int32
+	healthsReceived  int32
 	server           *httptest.Server
 }
 
@@ -398,6 +399,196 @@ func TestDeregister(t *testing.T) {
 			}
 			if test.expectedDeregister != (lb.lbAlgo).(*fakeLbAlgo).deregisterUrl {
 				t.Errorf("unexpected register, want %v, got %v", test.expectedDeregister, (lb.lbAlgo).(*fakeLbAlgo).deregisterUrl)
+			}
+		})
+	}
+}
+
+type fakeLBAlgo struct {
+	registrations   []string
+	deregistrations []string
+	balancedReqs    []*http.Request
+	checks          []*algos.Checker
+}
+
+func (fLbAlgo *fakeLBAlgo) Register(rawURL string) error {
+	fLbAlgo.registrations = append(fLbAlgo.registrations, rawURL)
+	return nil
+}
+
+func (fLbAlgo *fakeLBAlgo) Deregister(rawURL string) error {
+	fLbAlgo.deregistrations = append(fLbAlgo.deregistrations, rawURL)
+	return nil
+}
+
+func (fLbAlgo *fakeLBAlgo) Handler(r *http.Request) http.Handler {
+	fLbAlgo.balancedReqs = append(fLbAlgo.balancedReqs, r)
+	return nil
+}
+
+func (fLbAlgo *fakeLBAlgo) RegisterCheck(ctx context.Context, chk *algos.Checker) {
+	fLbAlgo.checks = append(fLbAlgo.checks, chk)
+}
+
+var _ lbAlgorithm = (*fakeLBAlgo)(nil)
+
+func newTestLBWithFakeAlgo(t *testing.T, testBe *testBackend) (*Server, error) {
+	t.Helper()
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		return nil, fmt.Errorf("Failed to find a free LB port")
+	}
+
+	beCfg := &pb.BackendConfig{
+		Type: &pb.BackendConfig_Static{
+			Static: &pb.StaticBackends{
+				Urls: []string{testBe.server.URL},
+			},
+		},
+	}
+
+	cfg := &pb.Config{
+		Name:    proto.String("Test LB"),
+		Port:    proto.Int32(int32(addr.Port)),
+		Backend: beCfg,
+		HealthCheck: &pb.HealthCheck{
+			Probe: &pb.HealthProbe{
+				Type: &pb.HealthProbe_HttpGet{
+					HttpGet: &pb.HttpGet{
+						Path: proto.String("/healthz"),
+					},
+				},
+			},
+			Period: &durationpb.Duration{
+				Nanos: int32(healthcheckPeriod),
+			},
+		},
+	}
+	srv, err := New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	srv.lbAlgo = &fakeLBAlgo{}
+	return srv, nil
+}
+
+func deadThenHealthyBackend() *testBackend {
+	testBe := &testBackend{
+		requestsReceived: 0,
+	}
+	tbeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			if atomic.LoadInt32(&testBe.healthsReceived) == 0 {
+				http.Error(w, "I am dead!", http.StatusInternalServerError)
+			} else {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("OK, now I am alive"))
+			}
+			atomic.AddInt32(&testBe.healthsReceived, 1)
+			return
+		}
+
+		atomic.AddInt32(&testBe.requestsReceived, 1)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+	testBe.handler = tbeHandler
+	return testBe
+}
+
+func TestDeadCounter(t *testing.T) {
+	tests := []struct {
+		name           string
+		initialCounter *deadCounter
+		backend        *testBackend
+		noRequests     int
+		wantDeregister bool
+		wantCount      int32
+	}{
+		{
+			name:           "No dead counter",
+			initialCounter: nil,
+			noRequests:     1,
+			backend:        alwaysAliveBackend(),
+			wantDeregister: false,
+			wantCount:      0,
+		},
+		{
+			name:       "Dead count not reached, increases count",
+			backend:    neverAliveBackend(),
+			noRequests: 1,
+			initialCounter: &deadCounter{
+				failedChecks: make(map[string]int32),
+				maxFails:     2,
+			},
+			wantDeregister: false,
+			wantCount:      1,
+		},
+		{
+			name:       "Dead count reached, deregisters backend",
+			backend:    neverAliveBackend(),
+			noRequests: 1,
+			initialCounter: &deadCounter{
+				failedChecks: make(map[string]int32),
+				maxFails:     1,
+			},
+			wantDeregister: true,
+			wantCount:      0,
+		},
+		{
+			name:       "Backend is back healthy, resets counter",
+			backend:    deadThenHealthyBackend(),
+			noRequests: 2,
+			initialCounter: &deadCounter{
+				failedChecks: make(map[string]int32),
+				maxFails:     3,
+			},
+			wantDeregister: false,
+			wantCount:      0,
+		},
+	}
+
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			go test.backend.startListen(t)
+			defer test.backend.stop(t)
+
+			lb, err := newTestLBWithFakeAlgo(t, test.backend)
+			defer lb.Close()
+			if err != nil {
+				t.Errorf("error creating LB: %v", err)
+			}
+			fakeAlgo := lb.lbAlgo.(*fakeLBAlgo)
+			if test.initialCounter != nil {
+				lb.deadCounter = test.initialCounter
+				lb.deadCounter.deregistrar = fakeAlgo
+			}
+
+			rawURL := test.backend.server.URL
+			be, err := algos.NewBackend(rawURL)
+			if err != nil {
+				t.Errorf("error creating backend for URL %v: %v", rawURL, err)
+			}
+
+			for i := 0; i < test.noRequests; i++ {
+				lb.alive(context.Background(), be)
+			}
+
+			if test.wantDeregister {
+				if len(fakeAlgo.deregistrations) == 0 {
+					t.Errorf("want deregistration of backend, got none")
+				} else if fakeAlgo.deregistrations[0] != rawURL {
+					t.Errorf("want deregistration of %v, got none", rawURL)
+				}
+			} else if len(fakeAlgo.deregistrations) > 0 {
+				t.Errorf("want no deregistration, but got some: %v", fakeAlgo.deregistrations)
+			}
+			if test.initialCounter != nil {
+				gotCount := lb.deadCounter.failedChecks[rawURL]
+				if gotCount != test.wantCount {
+					t.Errorf("want count %v, got %v", test.wantCount, lb.deadCounter.failedChecks[rawURL])
+				}
 			}
 		})
 	}

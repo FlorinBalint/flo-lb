@@ -35,6 +35,18 @@ func (b *Backend) URL() string {
 	return b.url.String()
 }
 
+func NewBackend(rawURL string) (*Backend, error) {
+	actualUrl, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Backend{
+		status: readyMask, // TODO: Implement readiness checks
+		url:    actualUrl,
+	}, nil
+}
+
 func (b *Backend) andMaskStatus(mask int32) {
 	for {
 		newStatus := atomic.LoadInt32(&b.status) & mask

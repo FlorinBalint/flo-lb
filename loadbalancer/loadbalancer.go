@@ -23,10 +23,11 @@ type lbAlgorithm interface {
 var _ lbAlgorithm = (*algos.RoundRobin)(nil)
 
 type Server struct {
-	cfg    *pb.Config
-	server *http.Server
-	lbAlgo lbAlgorithm
-	mu     sync.RWMutex
+	cfg         *pb.Config
+	server      *http.Server
+	lbAlgo      lbAlgorithm
+	deadCounter *deadCounter
+	mu          sync.RWMutex
 }
 
 func New(cfg *pb.Config) (*Server, error) {

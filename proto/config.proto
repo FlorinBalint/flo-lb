@@ -65,6 +65,9 @@ message HealthCheck {
   optional google.protobuf.Duration initial_delay = 2;
 
   optional google.protobuf.Duration period = 3;
+
+  // If set to a >0 value, a backend will be forgotten after this many consecutive failed requests.
+  optional int32 disconnect_threshold = 4;
 }
 
 enum Protocol {

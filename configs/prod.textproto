@@ -25,4 +25,5 @@ health_check {
   period {
     seconds: 5
   }
+  disconnect_threshold: 5
 }

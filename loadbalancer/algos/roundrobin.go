@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"sync/atomic"
 	"time"
 
@@ -35,17 +34,12 @@ func NewRoundRobin(beCfg *pb.BackendConfig) (*RoundRobin, error) {
 	backends := make([]*Backend, len(rawURLs))
 	beIndices := make(map[string]int)
 
+	var err error
 	for i, rawURL := range rawURLs {
 		beIndices[rawURL] = i
 
-		url, err := url.Parse(rawURL)
-		if err != nil {
+		if backends[i], err = NewBackend(rawURL); err != nil {
 			return nil, err
-		}
-
-		backends[i] = &Backend{
-			status: readyMask, // TODO: Implement readiness checks
-			url:    url,
 		}
 	}
 
@@ -71,14 +65,10 @@ func (rr *RoundRobin) Register(rawURL string) error {
 		log.Printf("%v already registered", rawURL)
 		return nil
 	}
-	url, err := url.Parse(rawURL)
+
+	be, err := NewBackend(rawURL)
 	if err != nil {
 		return err
-	}
-
-	newBackend := &Backend{
-		url:    url,
-		status: readyMask, // TODO: Implement readiness checks
 	}
 	if rr.idx >= 0 {
 		rr.idx = rr.idx % rr.beCount // make sure the algorithm is fair
@@ -86,7 +76,8 @@ func (rr *RoundRobin) Register(rawURL string) error {
 	if rr.idx == 0 {
 		rr.idx = rr.beCount // pick the new one next if I am at the end
 	}
-	rr.backends = append(rr.backends, newBackend)
+
+	rr.backends = append(rr.backends, be)
 	rr.beCount++
 	rr.beIndices[rawURL] = len(rr.backends)
 	return nil
