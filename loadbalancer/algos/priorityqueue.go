@@ -26,7 +26,6 @@ type keyValue[K comparable, V any] struct {
 	key   K
 	value V
 }
-
 type AdressablePQ[K comparable, V any] struct {
 	comp    Comparator[V]
 	keyMap  map[K]int
@@ -56,7 +55,7 @@ func parentNode(index int) int {
 	return (index - 1) / 2
 }
 
-func (addrPQ *AdressablePQ[K, V]) heapify(index int) {
+func (addrPQ *AdressablePQ[K, V]) heapifyDown(index int) {
 	left := leftChild(index)
 	right := rightChild(index)
 	max := index
@@ -73,7 +72,7 @@ func (addrPQ *AdressablePQ[K, V]) heapify(index int) {
 
 	if max != index {
 		addrPQ.swap(index, max)
-		addrPQ.heapify(max)
+		addrPQ.heapifyDown(max)
 	}
 }
 
@@ -112,7 +111,7 @@ func (addrPQ *AdressablePQ[K, V]) repairIndex(idx int) {
 			addrPQ.entries[idx].value) {
 		addrPQ.bubbleUp(idx)
 	} else {
-		addrPQ.heapify(idx)
+		addrPQ.heapifyDown(idx)
 	}
 }
 
@@ -155,7 +154,7 @@ func (addrPQ *AdressablePQ[K, V]) Pop() V {
 		addrPQ.swap(0, len(addrPQ.entries)-1)
 		addrPQ.entries = addrPQ.entries[:len(addrPQ.entries)-1]
 		delete(addrPQ.keyMap, res.key)
-		addrPQ.heapify(0)
+		addrPQ.heapifyDown(0)
 		return res.value
 	}
 	var v V
@@ -170,12 +169,12 @@ func (addrPQ *AdressablePQ[K, V]) Top() V {
 	return v
 }
 
-func NewPQ[K comparable, V constraints.Ordered]() AdressablePQ[K, V] {
+func NewPQ[K comparable, V constraints.Ordered]() *AdressablePQ[K, V] {
 	return NewPQWithComparator[K, V](OrderedComparator[V]{})
 }
 
-func NewPQWithComparator[K comparable, V any](comp Comparator[V]) AdressablePQ[K, V] {
-	return AdressablePQ[K, V]{
+func NewPQWithComparator[K comparable, V any](comp Comparator[V]) *AdressablePQ[K, V] {
+	return &AdressablePQ[K, V]{
 		comp:   comp,
 		keyMap: make(map[K]int),
 	}

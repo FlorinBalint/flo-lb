@@ -266,9 +266,7 @@ func TestEmplace(t *testing.T) {
 			emplaceValue: 1,
 			wantValues:   []int{5, 2, 1},
 			wantMap: map[string]int{
-				"5": 0,
-				"2": 1,
-				"3": 2,
+				"5": 0, "2": 1, "3": 2,
 			},
 		},
 		{
@@ -278,9 +276,7 @@ func TestEmplace(t *testing.T) {
 			emplaceValue: 10,
 			wantValues:   []int{10, 2, 5},
 			wantMap: map[string]int{
-				"3": 0,
-				"2": 1,
-				"5": 2,
+				"3": 0, "2": 1, "5": 2,
 			},
 		},
 		{
@@ -290,9 +286,7 @@ func TestEmplace(t *testing.T) {
 			emplaceValue: 1,
 			wantValues:   []int{3, 2, 1},
 			wantMap: map[string]int{
-				"3": 0,
-				"2": 1,
-				"5": 2,
+				"3": 0, "2": 1, "5": 2,
 			},
 		},
 		{
@@ -308,12 +302,7 @@ func TestEmplace(t *testing.T) {
 				4, 3,
 				1, 2, 2},
 			wantMap: map[string]int{
-				"8": 0,
-				"4": 1,
-				"3": 2,
-				"1": 3,
-				"6": 4,
-				"2": 5,
+				"8": 0, "4": 1, "3": 2, "1": 3, "6": 4, "2": 5,
 			},
 		},
 		{
@@ -329,12 +318,7 @@ func TestEmplace(t *testing.T) {
 				10, 9,
 				1, 4, 7},
 			wantMap: map[string]int{
-				"6":  0,
-				"10": 1,
-				"9":  2,
-				"1":  3,
-				"4":  4,
-				"7":  5,
+				"6": 0, "10": 1, "9": 2, "1": 3, "4": 4, "7": 5,
 			},
 		},
 		{
@@ -350,12 +334,7 @@ func TestEmplace(t *testing.T) {
 				8, 9,
 				1, 4, 7},
 			wantMap: map[string]int{
-				"10": 0,
-				"6":  1,
-				"9":  2,
-				"1":  3,
-				"4":  4,
-				"7":  5,
+				"10": 0, "6": 1, "9": 2, "1": 3, "4": 4, "7": 5,
 			},
 		},
 	}
