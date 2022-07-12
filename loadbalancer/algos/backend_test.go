@@ -1,6 +1,7 @@
 package algos
 
 import (
+	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"testing"
@@ -81,7 +82,6 @@ func TestSetReady(t *testing.T) {
 
 func TestGetOpenConnection(t *testing.T) {
 	localUrl, err := url.Parse("http://localhost:0")
-	localCon := httputil.NewSingleHostReverseProxy(localUrl)
 	if err != nil {
 		t.Fatalf("Illegal url error: %v", err)
 	}
@@ -116,24 +116,17 @@ func TestGetOpenConnection(t *testing.T) {
 			mask:         aliveAndReady,
 			expectNonNil: true,
 		},
-
-		{
-			name:         "Alive and ready backend reuses existing connection",
-			url:          localUrl,
-			mask:         readyMask | aliveMask,
-			existing:     localCon,
-			expectNonNil: true,
-		},
 	}
 
 	for _, test := range tests {
 		be := &Backend{
-			url:        test.url,
-			status:     test.mask,
-			connection: test.existing,
+			url:    test.url,
+			status: test.mask,
+			// TODO(#7): Test reuse connection based on stickiness config.
+			connections: []http.Handler{test.existing},
 		}
 
-		con, ok := be.GetOpenConnection()
+		con, ok := be.GetOpenConnection(nil)
 		if !ok && test.expectNonNil {
 			t.Errorf("backend.GetOpenConnection() want non nil, got nil")
 		} else if ok && !test.expectNonNil {
