@@ -148,6 +148,22 @@ func (addrPQ *AdressablePQ[K, V]) Get(key K) V {
 	return v
 }
 
+func (addrPQ *AdressablePQ[K, V]) Values() []V {
+	var vals []V
+	for _, entry := range addrPQ.entries {
+		vals = append(vals, entry.value)
+	}
+	return vals
+}
+
+func (addrPQ *AdressablePQ[K, V]) Top() V {
+	if len(addrPQ.entries) > 0 {
+		return addrPQ.entries[0].value
+	}
+	var v V
+	return v
+}
+
 func (addrPQ *AdressablePQ[K, V]) Pop() V {
 	if len(addrPQ.entries) > 0 {
 		res := addrPQ.entries[0]
@@ -161,12 +177,12 @@ func (addrPQ *AdressablePQ[K, V]) Pop() V {
 	return v
 }
 
-func (addrPQ *AdressablePQ[K, V]) Top() V {
-	if len(addrPQ.entries) > 0 {
-		return addrPQ.entries[0].value
-	}
-	var v V
-	return v
+func (addrPQ *AdressablePQ[K, V]) Size() int {
+	return len(addrPQ.entries)
+}
+
+func (addrPQ *AdressablePQ[K, V]) Empty() bool {
+	return len(addrPQ.entries) == 0
 }
 
 func NewPQ[K comparable, V constraints.Ordered]() *AdressablePQ[K, V] {

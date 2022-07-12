@@ -108,6 +108,14 @@ message CertConfig {
   // TODO(#16): Support mTLS
 }
 
+enum BalancingAlgorithm {
+  RoundRobin = 0;
+  LeastConnections = 1;
+  LowestLatency = 2; // TODO(#8)
+  ResourceBased = 3; // TODO(#8)
+}
+
+// Next tag: 8
 message Config {
   // Name of the load balancer, defaults to flo-lb
   optional string name = 1;
@@ -116,6 +124,8 @@ message Config {
   optional int32 port = 2;
 
   optional Protocol protocol = 5;
+
+  optional BalancingAlgorithm algorithm = 7;
 
   optional CertConfig cert = 6;
 

@@ -15,12 +15,13 @@ import (
 
 type lbAlgorithm interface {
 	Register(rawURL string) error
-	Deregister(url string) error
+	Deregister(rawURL string) error
 	Handler(r *http.Request) http.Handler
 	RegisterCheck(ctx context.Context, chk *algos.Checker)
 }
 
 var _ lbAlgorithm = (*algos.RoundRobin)(nil)
+var _ lbAlgorithm = (*algos.LeastConnections)(nil)
 
 type Server struct {
 	cfg         *pb.Config
@@ -41,7 +42,12 @@ func New(cfg *pb.Config) (*Server, error) {
 	}
 
 	var err error
-	lb.lbAlgo, err = algos.NewRoundRobin(cfg.GetBackend())
+	switch cfg.GetAlgorithm() {
+	case pb.BalancingAlgorithm_LeastConnections:
+		lb.lbAlgo, err = algos.NewLeastConnections(cfg.GetBackend())
+	default:
+		lb.lbAlgo, err = algos.NewRoundRobin(cfg.GetBackend())
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -117,7 +117,7 @@ func (rr *RoundRobin) Handler(r *http.Request) http.Handler {
 	backOffs := 0
 	for {
 		currIdx := atomic.AddInt64(&rr.idx, 1) % rr.beCount
-		if connection, ready := rr.backends[currIdx].GetOpenConnection(); ready {
+		if connection, ready := rr.backends[currIdx].GetOpenConnection(r); ready {
 			return connection
 		}
 		tries++

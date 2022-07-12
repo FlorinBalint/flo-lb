@@ -1,49 +1,12 @@
 package algos
 
 import (
-	"fmt"
-	"io"
-	"log"
-	"net"
-	"net/http"
-	"net/url"
 	"testing"
 
 	pb "github.com/FlorinBalint/flo_lb/proto"
 )
 
-func backendWithStatus(t *testing.T, status int32, idx int) *Backend {
-	t.Helper()
-
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, fmt.Sprintf("%d", idx))
-	}
-	listener, err := net.Listen("tcp", ":0")
-	if err != nil {
-		t.Fatalf("could not open port: %v", err)
-	}
-	srv := http.Server{
-		Addr:    listener.Addr().String(),
-		Handler: http.HandlerFunc(handler),
-	}
-	url, _ := url.Parse(fmt.Sprintf("http://%v", srv.Addr))
-
-	return &Backend{
-		url:        url,
-		connection: srv.Handler,
-		status:     status,
-	}
-}
-
-func unreadyBackend(t *testing.T, idx int) *Backend {
-	return backendWithStatus(t, aliveMask, idx)
-}
-
-func upAndReadyBackend(t *testing.T, idx int) *Backend {
-	return backendWithStatus(t, aliveAndReady, idx)
-}
-
-func TestHandler(t *testing.T) {
+func TestRRHandler(t *testing.T) {
 	tests := []struct {
 		name        string
 		backends    []*Backend
@@ -83,7 +46,6 @@ func TestHandler(t *testing.T) {
 				idx:      test.initialIdx,
 				beCount:  int64(len(test.backends)),
 			}
-			log.Printf("idx %v", rr.idx)
 			rr.Handler(nil)
 			if rr.idx != int64(test.expectedIdx) {
 				t.Errorf("Handler() want index %v, got %v", test.expectedIdx, rr.idx)
@@ -92,7 +54,7 @@ func TestHandler(t *testing.T) {
 	}
 }
 
-func TestRegister(t *testing.T) {
+func TestRRRegister(t *testing.T) {
 	tests := []struct {
 		name          string
 		backendUrls   []string
@@ -159,7 +121,7 @@ func TestRegister(t *testing.T) {
 	}
 }
 
-func TestUnregister(t *testing.T) {
+func TestRRUnregister(t *testing.T) {
 	tests := []struct {
 		name         string
 		backendUrls  []string
@@ -241,7 +203,7 @@ func TestUnregister(t *testing.T) {
 			}
 
 			for i, wantUrl := range test.expectedUrls {
-				if url := rr.backends[i].url.String(); wantUrl != url {
+				if url := rr.backends[i].URL(); wantUrl != url {
 					t.Errorf("backend[%v], want %v backend, got %v", i, wantUrl, url)
 				}
 			}
