@@ -1,0 +1,30 @@
+## Message: github.com/FlorinBalint/flo_lb/proto.Config
+name: "flo_lb"
+port: 443
+backend {
+  dynamic {
+    register_path: "/register"
+    deregister_path: "/deregister"
+  }
+}
+protocol: HTTPS
+cert {
+  acme {
+    domain: "florinbalint.com"
+    server_dir: "https://acme-v02.api.letsencrypt.org/directory"
+  }
+}
+health_check {
+  probe {
+    http_get {
+      path: "/healthz"
+    }
+  }
+  initial_delay {
+    seconds: 10
+  }
+  period {
+    seconds: 5
+  }
+  disconnect_threshold: 5
+}
