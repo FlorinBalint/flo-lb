@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	pb "github.com/FlorinBalint/flo_lb/proto"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
@@ -16,7 +17,7 @@ func Parse(cfg []byte, format pb.ConfigFormat) (*pb.Config, error) {
 	case pb.ConfigFormat_TEXT_PROTO:
 		err = prototext.Unmarshal(cfg, res)
 	case pb.ConfigFormat_JSON:
-		err = fmt.Errorf("JSON is not supported yet")
+		err = protojson.Unmarshal(cfg, res)
 	case pb.ConfigFormat_YAML:
 		err = fmt.Errorf("YAML is not supported yet")
 	}

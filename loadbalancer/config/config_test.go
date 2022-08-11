@@ -111,5 +111,12 @@ func TestParseFileYAML(t *testing.T) {
 }
 
 func TestParseFileJSON(t *testing.T) {
-	// TODO
+	file := testFile("test_config.json")
+	got, err := ParseFile(file)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+	if diff := cmp.Diff(wantProto, got, protocmp.Transform()); diff != "" {
+		t.Errorf("Parse() mismatch (-want +got):\n%s", diff)
+	}
 }
