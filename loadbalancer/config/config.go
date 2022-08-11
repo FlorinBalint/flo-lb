@@ -8,6 +8,7 @@ import (
 	pb "github.com/FlorinBalint/flo_lb/proto"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
+	"sigs.k8s.io/yaml"
 )
 
 func Parse(cfg []byte, format pb.ConfigFormat) (*pb.Config, error) {
@@ -19,7 +20,11 @@ func Parse(cfg []byte, format pb.ConfigFormat) (*pb.Config, error) {
 	case pb.ConfigFormat_JSON:
 		err = protojson.Unmarshal(cfg, res)
 	case pb.ConfigFormat_YAML:
-		err = fmt.Errorf("YAML is not supported yet")
+		json, err := yaml.YAMLToJSON(cfg)
+		if err != nil {
+			return nil, err
+		}
+		err = protojson.Unmarshal(json, res)
 	}
 	return res, err
 }
