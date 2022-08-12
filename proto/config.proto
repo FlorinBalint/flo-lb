@@ -115,6 +115,13 @@ enum BalancingAlgorithm {
   ResourceBased = 3; // TODO(#8)
 }
 
+enum ConfigFormat {
+  TEXT_PROTO = 0;
+  JSON = 1;
+  YAML = 2;
+  XML = 3;
+}
+
 // Next tag: 8
 message Config {
   // Name of the load balancer, defaults to flo-lb

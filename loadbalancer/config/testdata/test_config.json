@@ -1,0 +1,27 @@
+{
+  "name": "flo_lb",
+  "port": 443,
+  "backend": {
+    "dynamic": {
+      "register_path": "/register",
+      "deregister_path": "/deregister"
+    }
+  },
+  "protocol": "HTTPS",
+  "cert": {
+    "acme": {
+      "domain": "florinbalint.com",
+      "server_dir": "https://acme-v02.api.letsencrypt.org/directory"
+    }
+  },
+  "healthCheck": {
+    "probe": {
+      "httpGet": {
+        "path": "/healthz"
+      }
+    },
+    "initialDelay": "10s",
+    "period": "5s",
+    "disconnectThreshold": 5
+  }
+}
