@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	pb "github.com/FlorinBalint/flo_lb/proto"
+	xml2json "github.com/basgys/goxml2json"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
 	"sigs.k8s.io/yaml"
@@ -25,6 +26,13 @@ func Parse(cfg []byte, format pb.ConfigFormat) (*pb.Config, error) {
 			return nil, err
 		}
 		err = protojson.Unmarshal(json, res)
+	case pb.ConfigFormat_XML:
+		xml := strings.NewReader(string(cfg))
+		json, err := xml2json.Convert(xml)
+		if err != nil {
+			return nil, err
+		}
+		err = protojson.Unmarshal(json.Bytes(), res)
 	}
 	return res, err
 }
@@ -38,6 +46,8 @@ func fileFormat(path string) (pb.ConfigFormat, error) {
 		return pb.ConfigFormat_YAML, nil
 	case ".json":
 		return pb.ConfigFormat_JSON, nil
+	case ".xml":
+		return pb.ConfigFormat_XML, nil
 	default:
 		return 0, fmt.Errorf("unknown extension format %v for %v, please add extension", extension, path)
 	}

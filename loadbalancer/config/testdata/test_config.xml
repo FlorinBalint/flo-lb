@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<name>flo_lb</name>
+<port>443</port>
+<backend>
+  <dynamic>
+    <register_path>/register</register_path>
+    <deregister_path>/deregister</deregister_path>
+  </dynamic>
+</backend>
+<protocol>HTTPS</protocol>
+<cert>
+  <acme>
+    <domain>florinbalint.com</domain>
+    <server_dir>https://acme-v02.api.letsencrypt.org/directory</server_dir>
+  </acme>
+</cert>
+<healthCheck>
+  <probe>
+    <httpGet>
+      <path>/healthz</path>
+    </httpGet>
+  </probe>
+  <initialDelay>10s</initialDelay>
+  <period>5s</period>
+  <disconnectThreshold>5</disconnectThreshold>
+</healthCheck>

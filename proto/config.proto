@@ -117,17 +117,15 @@ enum BalancingAlgorithm {
 
 enum ConfigFormat {
   TEXT_PROTO = 0;
-  BINARY_PROTO = 1;
-  JSON = 2;
-  YAML = 3;
+  JSON = 1;
+  YAML = 2;
+  XML = 3;
 }
 
-// Next tag: 9
+// Next tag: 8
 message Config {
   // Name of the load balancer, defaults to flo-lb
   optional string name = 1;
-
-  optional ConfigFormat format = 8;
 
   // Port listening on
   optional int32 port = 2;

@@ -127,3 +127,14 @@ func TestParseFileJSON(t *testing.T) {
 		t.Errorf("Parse() mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestParseFileXML(t *testing.T) {
+	file := testFile("test_config.xml")
+	got, err := ParseFile(file)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+	if diff := cmp.Diff(wantProto, got, protocmp.Transform()); diff != "" {
+		t.Errorf("Parse() mismatch (-want +got):\n%s", diff)
+	}
+}
