@@ -50,7 +50,7 @@ var wantProto = &pb.Config{
 	},
 }
 
-func testFile(testFile string) string {
+func testData(testFile string) string {
 	_, filename, _, _ := runtime.Caller(1)
 	return path.Join(path.Dir(filename), "/testdata/", testFile)
 }
@@ -96,7 +96,7 @@ health_check {
 }
 
 func TestParseFilePB(t *testing.T) {
-	file := testFile("test_config.textproto")
+	file := testData("test_config.textproto")
 	got, err := ParseFile(file)
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
@@ -106,35 +106,36 @@ func TestParseFilePB(t *testing.T) {
 	}
 }
 
-func TestParseFileYAML(t *testing.T) {
-	file := testFile("test_config.yaml")
-	got, err := ParseFile(file)
-	if err != nil {
-		t.Errorf("unexpected error %v", err)
+func TestParseFile(t *testing.T) {
+	tests := []struct {
+		name string
+		file string
+	}{
+		{
+			name: "Parse TextProto file",
+			file: "test_config.textproto",
+		},
+		{
+			name: "Parse YAML file",
+			file: "test_config.yaml",
+		},
+		{
+			name: "Parse JSON file",
+			file: "test_config.json",
+		},
+		{
+			name: "Parse XML file",
+			file: "test_config.xml",
+		},
 	}
-	if diff := cmp.Diff(wantProto, got, protocmp.Transform()); diff != "" {
-		t.Errorf("Parse() mismatch (-want +got):\n%s", diff)
-	}
-}
 
-func TestParseFileJSON(t *testing.T) {
-	file := testFile("test_config.json")
-	got, err := ParseFile(file)
-	if err != nil {
-		t.Errorf("unexpected error %v", err)
-	}
-	if diff := cmp.Diff(wantProto, got, protocmp.Transform()); diff != "" {
-		t.Errorf("Parse() mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestParseFileXML(t *testing.T) {
-	file := testFile("test_config.xml")
-	got, err := ParseFile(file)
-	if err != nil {
-		t.Errorf("unexpected error %v", err)
-	}
-	if diff := cmp.Diff(wantProto, got, protocmp.Transform()); diff != "" {
-		t.Errorf("Parse() mismatch (-want +got):\n%s", diff)
+	for _, test := range tests {
+		got, err := ParseFile(testData(test.file))
+		if err != nil {
+			t.Errorf("unexpected error %v", err)
+		}
+		if diff := cmp.Diff(wantProto, got, protocmp.Transform()); diff != "" {
+			t.Errorf("Parse() mismatch (-want +got):\n%s", diff)
+		}
 	}
 }

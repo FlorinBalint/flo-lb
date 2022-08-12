@@ -42,7 +42,7 @@ func fileFormat(path string) (pb.ConfigFormat, error) {
 	switch extension {
 	case ".textpb", ".textproto", ".pb":
 		return pb.ConfigFormat_TEXT_PROTO, nil
-	case ".yaml":
+	case ".yaml", ".yml":
 		return pb.ConfigFormat_YAML, nil
 	case ".json":
 		return pb.ConfigFormat_JSON, nil
@@ -55,11 +55,11 @@ func fileFormat(path string) (pb.ConfigFormat, error) {
 
 // Parse a load balancer config file
 func ParseFile(path string) (*pb.Config, error) {
-	content, err := ioutil.ReadFile(path)
+	format, err := fileFormat(path)
 	if err != nil {
 		return nil, err
 	}
-	format, err := fileFormat(path)
+	content, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
